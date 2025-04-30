@@ -1,6 +1,7 @@
 # ========================================
 # Unity generated folders and files
 # ========================================
+.utmp/
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -9,6 +10,11 @@
 [Ll]ogs/
 [Mm]emoryCaptures/
 UserSettings/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+crashlytics-build.properties
 
 # Unity cache
 Assets/AssetStoreTools*
@@ -17,6 +23,12 @@ Assets/AssetStoreTools*
 Assets/Scenes/
 Assets/Readme.asset
 Assets/TutorialInfo/
+Assets/Readme.asset.meta
+Assets/TutorialInfo.meta
+Assets/Scenes.meta
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # ========================================
 # Ignore Rider, VS, and VS Code configs
@@ -35,6 +47,8 @@ Assets/TutorialInfo/
 *.pdb
 *.mdb
 *.vsconfig
+.vs/
+.gradle/
 
 # Rider logs and settings
 /.resharper*
@@ -60,9 +74,9 @@ desktop.ini
 *.xcarchive
 *.xcodeproj
 *.xcworkspace
-Assets/Readme.asset.meta
-Assets/TutorialInfo.meta
-Assets/Scenes.meta
+
 
 # Optional: ignore test result coverage
 *.coverage
+
+
