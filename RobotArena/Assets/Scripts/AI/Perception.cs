@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 
@@ -20,9 +21,9 @@ public class Perception : MonoBehaviour
     public float checkInterval = 0.2f;
     private float lastEnemyCheckTime;
     private float lastPickupCheckTime;
-    private List<Transform> cachedVisiblePickups = new();
+    private List<Pickup> cachedVisiblePickups = new();
 
-    private List<Transform> cachedVisibleEnemies = new();
+    private List<Enemy> cachedVisibleEnemies = new();
 
     [Tooltip("Obstacle layers that block vision")]
     public LayerMask obstacleMask;
@@ -48,7 +49,7 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Returns cached list of visible pickups, updating at most every checkInterval seconds.
     /// </summary>
-    public List<Transform> GetPickupsInRange()
+    public List<Pickup> GetPickupsInRange()
     {
         if (Time.time - lastPickupCheckTime < checkInterval)
             return cachedVisiblePickups;
@@ -60,17 +61,19 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Performs actual scan for visible pickups.
     /// </summary>
-    private List<Transform> ScanForPickupsInRange()
+    private List<Pickup> ScanForPickupsInRange()
     {
-        List<Transform> visiblePickups = new();
+        List<Pickup> visiblePickups = new();
         Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, pickupMask);
         float halfAngle = stats.sightAngle * 0.5f;
 
         foreach (var hit in hits)
         {
-            Transform pickup = hit.transform.root;
+            Transform pickupRoot = hit.transform.root;
+            if (!pickupRoot.TryGetComponent<Pickup>(out var pickup))
+                continue;
 
-            Vector3 direction = (pickup.position - transform.position).normalized;
+            Vector3 direction = (pickup.transform.position - transform.position).normalized;
 
             // FOV check
             if (Vector3.Angle(transform.forward, direction) > halfAngle)
@@ -90,15 +93,15 @@ public class Perception : MonoBehaviour
     }
 
 
-    public bool CanSee(Transform target)
+    public bool CanSeeEnemy(Enemy target)
     {
-        Vector3 dir = (target.position - transform.position).normalized;
+        Vector3 dir = (target.transform.position - transform.position).normalized;
         float halfAngle = stats.sightAngle * 0.5f;
         if (Vector3.Angle(transform.forward, dir) > halfAngle)
             return false;
 
         if (Physics.Raycast(transform.position, dir, out RaycastHit hit, stats.detectionRadius, obstacleMask))
-            return hit.transform == target;
+            return hit.transform.root == target;
 
         return true;
     }
@@ -106,7 +109,7 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Returns cached list of visible enemies, updating it at most every checkInterval seconds.
     /// </summary>
-    public List<Transform> GetEnemiesInRange()
+    public List<Enemy> GetEnemiesInRange()
     {
         if (Time.time - lastEnemyCheckTime < checkInterval)
             return cachedVisibleEnemies;
@@ -119,19 +122,21 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Internal method that performs actual scan for visible enemies.
     /// </summary>
-    private List<Transform> ScanForEnemiesInRange()
+    private List<Enemy> ScanForEnemiesInRange()
     {
-        List<Transform> visibleEnemies = new();
+        List<Enemy> visibleEnemies = new();
         Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, enemyMask);
         float halfAngle = stats.sightAngle * 0.5f;
 
         foreach (var hit in hits)
         {
-            Transform potentialEnemy = hit.transform.root;
+            Transform potentialEnemyRoot = hit.transform.root;
+            if (!potentialEnemyRoot.TryGetComponent<Enemy>(out var potentialEnemy))
+                continue;
             if (potentialEnemy == transform) continue; // skip self
-            if (!potentialEnemy.TryGetComponent<RobotController>(out _)) continue;
+ 
 
-            Vector3 direction = (potentialEnemy.position - transform.position).normalized;
+            Vector3 direction = (potentialEnemy.transform.position - transform.position).normalized;
 
             // FOV check
             if (Vector3.Angle(transform.forward, direction) > halfAngle)
