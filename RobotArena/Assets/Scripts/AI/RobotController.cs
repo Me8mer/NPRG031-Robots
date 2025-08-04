@@ -38,8 +38,11 @@ public class RobotController : MonoBehaviour
     private StateMachine stateMachine;
     private Perception perception;
     private RobotHealth health;
+    private DecisionLayer decision;
     /// <summary>Currently active high‑level state.</summary>
     public RobotState CurrentState { get; private set; } = RobotState.Idle;
+
+    [SerializeField] private bool isPlayer = false;
 
     #region Unity Callbacks
     void Awake()
@@ -51,7 +54,10 @@ public class RobotController : MonoBehaviour
 
     void Start()
     {
-        // States will set agent.speed dynamically based on stats and state
+        decision = isPlayer
+            ? new PlayerDecisionLayer(this)
+            : new EnemyDecisionLayer(this);
+
         stateMachine = new StateMachine();
         stateMachine.SetOwner(this);
         stateMachine.Initialize(new IdleState(stateMachine));
@@ -85,5 +91,6 @@ public class RobotController : MonoBehaviour
     public Perception GetPerception() => perception;
     public RobotStats GetStats() => stats;
     public RobotHealth GetHealth() => health;
+    public RobotObjective GetObjective() => decision.Decide();
     #endregion
 }
