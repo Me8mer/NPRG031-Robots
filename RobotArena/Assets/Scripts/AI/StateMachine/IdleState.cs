@@ -1,10 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-/// <summary>
-/// Default state: robot stands still, faces the first visible enemy,
-/// and regenerates armor at the highest rate.
-/// </summary>
 public class IdleState : IState
 {
     private readonly StateMachine _stateMachine;
@@ -20,34 +16,51 @@ public class IdleState : IState
 
     public void Enter()
     {
-        // Stop moving
+        _controller.SetCurrentState(RobotState.Idle);
+
+        // stop moving
         _agent.isStopped = true;
         _agent.speed = 0f;
 
-        // TODO rethink where armor regen trigger is
-        // Optional: start full armor regen rate
+        // full armor regen
         _controller.GetHealth().SetArmorRegen(_controller.GetStats().armorRegenIdle);
 
-        // Debug
         Debug.Log($"{_controller.name} → Idle");
     }
 
     public void Tick()
     {
-        // 1. Look for an enemy
-        if (_controller.GetPerception().SeeEnemy(out Transform enemy))
-        {
-            // Enemy spotted – switch to Chase later
-            // For now just spin to face it for visual feedback
-            _controller.transform.LookAt(enemy.position, Vector3.up);
+        // 1. get the global intent
+        var objective = _controller.GetObjective();
 
-            // TODO: _fsm.ChangeState(new ChaseState(_fsm, enemy));
+        // 2. hand off to the right state
+        switch (objective.Type)
+        {
+            case RobotObjectiveType.SeekPickup:
+                _stateMachine.ChangeState(new ChaseState(_stateMachine, objective.TargetPickup));
+                break;
+
+            case RobotObjectiveType.ChaseEnemy:
+                _stateMachine.ChangeState(new ChaseState(_stateMachine, objective.TargetEnemy));
+                break;
+
+            case RobotObjectiveType.AttackEnemy:
+                _stateMachine.ChangeState(new AttackState(_stateMachine, objective.TargetEnemy));
+                break;
+
+            case RobotObjectiveType.Retreat:
+                _stateMachine.ChangeState(new RetreatState(_stateMachine));
+                break;
+
+            case RobotObjectiveType.Idle:
+            default:
+                // stay here until something changes
+                break;
         }
-        // 2. Could also scan for bonus packs here
     }
 
     public void Exit()
     {
-        // No teardown needed yet
+        // nothing to clean up
     }
 }
