@@ -30,34 +30,10 @@ public class IdleState : IState
 
     public void Tick()
     {
-        // 1. get the global intent
-        var objective = _controller.GetObjective();
-
-        // 2. hand off to the right state
-        switch (objective.Type)
-        {
-            case RobotObjectiveType.SeekPickup:
-                _stateMachine.ChangeState(new ChaseState(_stateMachine, objective.TargetPickup));
-                break;
-
-            case RobotObjectiveType.ChaseEnemy:
-                _stateMachine.ChangeState(new ChaseState(_stateMachine, objective.TargetEnemy));
-                break;
-
-            case RobotObjectiveType.AttackEnemy:
-                _stateMachine.ChangeState(new AttackState(_stateMachine, objective.TargetEnemy));
-                break;
-
-            case RobotObjectiveType.Retreat:
-                _stateMachine.ChangeState(new RetreatState(_stateMachine));
-                break;
-
-            case RobotObjectiveType.Idle:
-            default:
-                // stay here until something changes
-                break;
-        }
+        // Delegate any state change to the shared helper
+        StateTransitionHelper.HandleTransition(_stateMachine, _controller);
     }
+
 
     public void Exit()
     {
