@@ -134,7 +134,7 @@ public class Perception : MonoBehaviour
             if (!potentialEnemyRoot.TryGetComponent<Enemy>(out var potentialEnemy))
                 continue;
             if (potentialEnemy == transform) continue; // skip self
- 
+
 
             Vector3 direction = (potentialEnemy.transform.position - transform.position).normalized;
 
@@ -164,13 +164,23 @@ public class Perception : MonoBehaviour
     /// </summary>
     void OnDrawGizmosSelected()
     {
+        // Ensure we have valid stats reference in editor
+        if (stats == null)
+        {
+            var ctrl = GetComponent<RobotController>();
+            if (ctrl == null || ctrl.GetStats() == null)
+                return;
+            stats = ctrl.GetStats();
+        }
+
         // Draw detection radius and sight cone
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, stats.detectionRadius);
-        Vector3 forward = transform.forward * stats.detectionRadius;
-        float halfAngleRad = stats.sightAngle * 0.5f * Mathf.Deg2Rad;
-        Vector3 leftDir = Quaternion.Euler(0, -stats.sightAngle * 0.5f, 0) * transform.forward;
-        Vector3 rightDir = Quaternion.Euler(0, stats.sightAngle * 0.5f, 0) * transform.forward;
+
+        float halfAngle = stats.sightAngle * 0.5f;
+        Vector3 leftDir = Quaternion.Euler(0, -halfAngle, 0) * transform.forward;
+        Vector3 rightDir = Quaternion.Euler(0, halfAngle, 0) * transform.forward;
+
         Gizmos.DrawLine(transform.position, transform.position + leftDir * stats.detectionRadius);
         Gizmos.DrawLine(transform.position, transform.position + rightDir * stats.detectionRadius);
     }

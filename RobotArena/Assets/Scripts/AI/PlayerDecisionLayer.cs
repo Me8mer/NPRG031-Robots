@@ -17,7 +17,7 @@ public class PlayerDecisionLayer : DecisionLayer
 
         var enemies = perception.GetEnemiesInRange();
         var pickups = perception.GetPickupsInRange();
-
+        Debug.Log($"{_controller.name} sees {enemies.Count} enemies and {pickups.Count} pickups");
         // 1. Attack if enemy in range
         foreach (var enemy in enemies)
         {

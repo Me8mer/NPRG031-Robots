@@ -24,6 +24,10 @@ public class ChaseState : IState
 
     public void Enter()
     {
+        Debug.DrawLine(_controller.transform.position,
+               _target.position,
+               Color.red,
+               1f);
         _controller.SetCurrentState(RobotState.Chase);
 
         // Start moving
