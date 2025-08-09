@@ -33,9 +33,12 @@ public static class StateTransitionHelper
         // Perform transitions
         switch (objective.Type)
         {
-            //case RobotObjectiveType.AttackEnemy:
-            //    fsm.ChangeState(new AttackState(fsm, objective.TargetEnemy));
-            //    break;
+            case RobotObjectiveType.AttackEnemy:
+                if (objective.TargetEnemy != null)
+                    fsm.ChangeState(new AttackState(fsm, objective.TargetEnemy.transform));
+                else
+                    fsm.ChangeState(new IdleState(fsm));
+                break;
 
             case RobotObjectiveType.SeekPickup:
                 fsm.ChangeState(new ChaseState(fsm, objective.TargetPickup.transform));

@@ -29,12 +29,22 @@ public class RobotHealth : MonoBehaviour
 
     void Update()
     {
-        float regenRatePerSec = _controller.CurrentState == RobotState.Chase
-                      ? _stats.armorRegenChase
-                      : _stats.armorRegenIdle;
+        float regenRatePerSec;
+
+        if (_controller.CurrentState == RobotState.Attack)
+        {
+            regenRatePerSec = 0f; // MVP: no armor recovery while attacking
+        }
+        else if (_controller.CurrentState == RobotState.Chase)
+        {
+            regenRatePerSec = _stats.armorRegenChase;
+        }
+        else
+        {
+            regenRatePerSec = _stats.armorRegenIdle;
+        }
 
         RegenerateArmor(regenRatePerSec * Time.deltaTime);
-
     }
     #endregion
 
