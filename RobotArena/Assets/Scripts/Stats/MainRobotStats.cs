@@ -19,7 +19,7 @@ public class RobotStats : ScriptableObject
     /// <summary>Speed multiplier when chasing an enemy.</summary>
     public float chaseSpeedModifier = 1f;
     /// <summary>Speed multiplier while attacking.</summary>
-    public float attackSpeedModifier = 0.8f;
+    public float attackSpeedModifier = 0.5f;
     /// <summary>Speed multiplier while retreating.</summary>
     public float retreatSpeedModifier = 0.5f;
     #endregion

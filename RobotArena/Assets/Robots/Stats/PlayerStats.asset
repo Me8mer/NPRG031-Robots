@@ -12,11 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d44a6fa3fcc9e60498b1e45f6acbef2e, type: 3}
   m_Name: PlayerStats
   m_EditorClassIdentifier: 
+  baseSpeed: 100
+  weight: 1
+  idleSpeedModifier: 0
+  chaseSpeedModifier: 1
+  attackSpeedModifier: 0.5
+  retreatSpeedModifier: 0.5
   maxHealth: 100
   maxArmor: 50
-  moveSpeed: 3.5
   detectionRadius: 10
-  sightAngle: 66
+  sightAngle: 360
   attackRange: 8
   fireCooldown: 1
   armorRegenIdle: 2
+  armorRegenChase: 1
