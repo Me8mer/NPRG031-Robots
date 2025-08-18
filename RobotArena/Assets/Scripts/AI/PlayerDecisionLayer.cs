@@ -6,67 +6,87 @@ public class PlayerDecisionLayer : DecisionLayer
 {
     public PlayerDecisionLayer(RobotController controller) : base(controller) { }
 
-    public override RobotObjective Decide()
+    public override DecisionResult Decide()
     {
         var perception = _controller.GetPerception();
         var stats = _controller.GetStats();
         var health = _controller.GetHealth();
 
-        //// -------- NEW: pickup has priority over attack or chase --------
-        var pickups = perception.GetAllPickups();
-        //if (pickups.Count > 0)
-        //{
-        //    var nearestPickup = GetNearest(pickups);
-        //    if (nearestPickup != null)
-        //    {
-        //        return new RobotObjective { Type = RobotObjectiveType.SeekPickup, TargetPickup = nearestPickup };
-        //    }
-        //}
-
-
+        // 0) Emergency rule
         float hpPct = health.CurrentHealth / stats.maxHealth;
         if (hpPct <= 0.30f)
         {
-            return RobotObjective.Retreat();
-        }
-
-        // whole-map awareness
-        var enemies = perception.GetAllOpponents();
-        if (enemies.Count == 0)
-            return RobotObjective.Idle();
-
-        // 1) If any enemy is inside effective attack range → ATTACK,
-        //    but also carry a pickup target if available so AttackState can move to it.
-        for (int i = 0; i < enemies.Count; i++)
-        {
-            var e = enemies[i]; if (e == null) continue;
-            if (CombatHelpers.InEffectiveAttackRange(_controller, e.transform, 1.5f))
+            return new DecisionResult
             {
-                Pickup nearestPickup = (pickups != null && pickups.Count > 0) ? GetNearest(pickups) : null;
-                return new RobotObjective
-                {
-                    Type = RobotObjectiveType.AttackEnemy,
-                    TargetEnemy = e,
-                    TargetPickup = nearestPickup
-                };
-            }
+                Move = MovementIntent.Retreat,
+                FireEnemy = FindBestEnemyInRange(perception) // can still shoot while retreating
+            };
         }
 
-        // 2) No enemy in range → seek pickup if any
+        // 1) Whole-map lists
+        var enemies = perception.GetAllOpponents();
+        var pickups = perception.GetAllPickups();
+
+        // 2) Fire intent: best enemy in effective attack range (or null)
+        var fireEnemy = FindBestEnemyInRange(perception);
+
+        // 3) Movement intent
+        if (fireEnemy != null)
+        {
+            // Enemy in range -> strafe that enemy
+            return new DecisionResult
+            {
+                Move = MovementIntent.StrafeEnemy,
+                MoveEnemy = fireEnemy,
+                FireEnemy = fireEnemy
+            };
+        }
+
+        // No enemy in range
         if (pickups != null && pickups.Count > 0)
         {
             var nearestPickup = GetNearest(pickups);
             if (nearestPickup != null)
             {
-                return new RobotObjective { Type = RobotObjectiveType.SeekPickup, TargetPickup = nearestPickup };
+                return new DecisionResult
+                {
+                    Move = MovementIntent.ChasePickup,
+                    MovePickup = nearestPickup,
+                    FireEnemy = null
+                };
             }
         }
 
-        // 3) Else chase nearest enemy, or idle if none
-        if (enemies.Count == 0)
-            return RobotObjective.Idle();
+        if (enemies != null && enemies.Count > 0)
+        {
+            var nearestEnemy = GetNearest(enemies);
+            return new DecisionResult
+            {
+                Move = MovementIntent.ChaseEnemy,
+                MoveEnemy = nearestEnemy,
+                FireEnemy = null
+            };
+        }
 
-        var nearestEnemy = GetNearest(enemies);
-        return new RobotObjective { Type = RobotObjectiveType.ChaseEnemy, TargetEnemy = nearestEnemy };
+        // Nothing to do
+        return new DecisionResult { Move = MovementIntent.Idle, FireEnemy = null };
+    }
+
+    private RobotController FindBestEnemyInRange(Perception perception)
+    {
+        var enemies = perception.GetAllOpponents();
+        RobotController best = null;
+        float bestDist = float.MaxValue;
+
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            var e = enemies[i]; if (e == null) continue;
+            if (CombatHelpers.InEffectiveAttackRange(_controller, e.transform, 1.5f))
+            {
+                float d = Vector3.Distance(_controller.transform.position, e.transform.position);
+                if (d < bestDist) { best = e; bestDist = d; }
+            }
+        }
+        return best;
     }
 }

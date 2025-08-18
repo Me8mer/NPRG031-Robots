@@ -49,16 +49,16 @@ public class ChaseState : IState
 
     public void Tick()
     {
-        var objective = _controller.GetObjective();
+        var decision = _controller.GetDecision();
 
         bool stillChase = false;
-        if (objective.Type == RobotObjectiveType.ChaseEnemy && objective.TargetEnemy != null)
+        if (decision.Move == MovementIntent.ChaseEnemy && decision.MoveEnemy != null)
         {
-            stillChase = (objective.TargetEnemy.transform == _target);
+            stillChase = (decision.MoveEnemy.transform == _target);
         }
-        else if (objective.Type == RobotObjectiveType.SeekPickup && objective.TargetPickup != null)
+        else if (decision.Move == MovementIntent.ChasePickup && decision.MovePickup != null)
         {
-            stillChase = (objective.TargetPickup.transform == _target);
+            stillChase = (decision.MovePickup.transform == _target);
         }
 
         if (stillChase)

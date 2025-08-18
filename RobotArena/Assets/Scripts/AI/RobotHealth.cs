@@ -36,7 +36,7 @@ public class RobotHealth : MonoBehaviour
 
         switch (_controller.CurrentState)
         {
-            case RobotState.Attack:
+            case RobotState.Strafe:
                 regenPerSec = 0f;
                 break;
             case RobotState.Chase:

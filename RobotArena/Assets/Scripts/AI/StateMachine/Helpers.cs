@@ -1,40 +1,34 @@
 using UnityEngine;
-
-
 using UnityEngine.AI;
 
-
 /// <summary>
-/// Utility to handle global state transitions based on the current RobotObjective
+/// Movement transitions based on the controller's latest DecisionResult.
 /// </summary>
 public static class StateTransitionHelper
 {
-    /// <summary>
-    /// Transitions the FSM to match the controller's current objective,
-    /// but avoids re-instantiating the same state type.
-    /// </summary>
     public static void HandleTransition(StateMachine fsm, RobotController controller)
     {
-        var objective = controller.GetObjective();
+        var decision = controller.GetDecision();           // <-- NEW
         var currentState = controller.CurrentState;
 
-        switch (objective.Type)
+        switch (decision.Move)
         {
-            case RobotObjectiveType.Idle:
+            case MovementIntent.Idle:
                 if (currentState == RobotState.Idle) return;
                 fsm.ChangeState(new IdleState(fsm));
                 return;
 
-            case RobotObjectiveType.Retreat:
+            case MovementIntent.Retreat:
                 if (currentState == RobotState.Retreat) return;
                 fsm.ChangeState(new RetreatState(fsm));
                 return;
 
-            case RobotObjectiveType.AttackEnemy:
-                if (currentState == RobotState.Attack) return;
-                if (objective.TargetEnemy != null)
+            case MovementIntent.StrafeEnemy:
+                // Keep it simple like before: if already in Attack (strafe), do not re-instantiate.
+                if (currentState == RobotState.Strafe) return;
+                if (decision.MoveEnemy != null)
                 {
-                    fsm.ChangeState(new AttackState(fsm, objective.TargetEnemy.transform));
+                    fsm.ChangeState(new StrafeState(fsm, decision.MoveEnemy.transform));
                 }
                 else
                 {
@@ -42,11 +36,12 @@ public static class StateTransitionHelper
                 }
                 return;
 
-            case RobotObjectiveType.SeekPickup:
-                if (currentState == RobotState.Chase && objective.TargetPickup != null) return;
-                if (objective.TargetPickup != null)
+            case MovementIntent.ChasePickup:
+                // Only avoid re-instantiation if we are already in Chase and still have a pickup target
+                if (currentState == RobotState.Chase && decision.MovePickup != null) return;
+                if (decision.MovePickup != null)
                 {
-                    fsm.ChangeState(new ChaseState(fsm, objective.TargetPickup.transform));
+                    fsm.ChangeState(new ChaseState(fsm, decision.MovePickup.transform));
                 }
                 else
                 {
@@ -54,11 +49,11 @@ public static class StateTransitionHelper
                 }
                 return;
 
-            case RobotObjectiveType.ChaseEnemy:
-                if (currentState == RobotState.Chase && objective.TargetEnemy != null) return;
-                if (objective.TargetEnemy != null)
+            case MovementIntent.ChaseEnemy:
+                if (currentState == RobotState.Chase && decision.MoveEnemy != null) return;
+                if (decision.MoveEnemy != null)
                 {
-                    fsm.ChangeState(new ChaseState(fsm, objective.TargetEnemy.transform));
+                    fsm.ChangeState(new ChaseState(fsm, decision.MoveEnemy.transform));
                 }
                 else
                 {
@@ -74,10 +69,6 @@ public static class StateTransitionHelper
 
     public static class CombatHelpers
     {
-        /// <summary>
-        /// Center-to-center distance we want to hold when attacking.
-        /// Based on OUR weapon range plus both agent radii and a small cushion.
-        /// </summary>
         public static float ComputeAttackRing(RobotController self, Transform target, float cushion = 0.25f)
         {
             if (self == null || target == null) return 0.1f;
@@ -95,9 +86,6 @@ public static class StateTransitionHelper
             return desired + myR + theirR + Mathf.Max(0f, cushion);
         }
 
-        /// <summary>
-        /// Are we within the effective attack distance (ring + tolerance)?
-        /// </summary>
         public static bool InEffectiveAttackRange(RobotController self, Transform target, float toleranceMeters = 0.5f)
         {
             float ring = ComputeAttackRing(self, target);
@@ -105,5 +93,4 @@ public static class StateTransitionHelper
             return dist <= ring + Mathf.Max(0f, toleranceMeters);
         }
     }
-
 }

@@ -1,36 +1,31 @@
 using System;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.AI;
 
-/// TODO Put into own file??????
-/// <summary>
-/// High‑level finite‑state‑machine identifiers shared by AI,
-/// perception and health subsystems.
-/// </summary>
+
+// High level movement states used by the FSM.
 public enum RobotState
 {
-    /// <summary>Standing still, regenerating at full rate.</summary>
     Idle,
-    /// <summary>Path‑finding toward a visible enemy target.</summary>
     Chase,
-    /// <summary>Firing the active weapon at a target in range.</summary>
-    Attack,
-    /// <summary>Retreating to cover or a flee point when fragile.</summary>
-    Retreat
+    Attack,   // currently used by StrafeState. You can rename later if you prefer.
+    Retreat,
+    Strafe
 }
 
+
 /// <summary>
-/// Central hub MonoBehaviour that wires together NavMeshAgent,
-/// perception, health and the finite‑state machine. One instance
-/// lives on each robot prefab at runtime.
+/// Central hub that wires NavMeshAgent, Perception, Health, DecisionLayer and FSM.
+/// Movement is handled by states. Firing is handled here every frame,
+/// independent of the movement state.
 /// </summary>
 [RequireComponent(typeof(NavMeshAgent))]
 [RequireComponent(typeof(Perception))]
 [RequireComponent(typeof(RobotHealth))]
 public class RobotController : MonoBehaviour
 {
-    /// <summary>Design‑time stats assigned via Inspector.</summary>
+
+
     [Header("Data")]
     public RobotStats stats;
 
@@ -39,11 +34,13 @@ public class RobotController : MonoBehaviour
     private Perception perception;
     private RobotHealth health;
     private DecisionLayer decision;
-    /// <summary>Currently active high‑level state.</summary>
+
     public RobotState CurrentState { get; private set; } = RobotState.Idle;
 
+    // Latest decision from the decision layer (movement + firing).
+    private DecisionResult _lastDecision;
 
-    #region Unity Callbacks
+    #region Unity
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
@@ -53,7 +50,6 @@ public class RobotController : MonoBehaviour
 
     void Start()
     {
-        // Single decision layer for all robots in PvP
         decision = new PlayerDecisionLayer(this);
 
         health.OnDeath += HandleDeath;
@@ -65,39 +61,53 @@ public class RobotController : MonoBehaviour
 
     void Update()
     {
+        // 1) Decide once per frame
+        _lastDecision = decision.Decide();
+
+        // 2) Handle firing regardless of current movement state
+        HandleFiring(_lastDecision);
+
+        // 3) Let the movement FSM tick. States will read GetDecision() and transition via helper.
         stateMachine.Tick();
     }
     #endregion
 
-    #region FSM Helpers
-    /// <summary>
-    /// Called by each concrete state on <c>Enter()</c> so controller knows what state is active.
-    /// </summary>
+    #region Public API
     public void SetCurrentState(RobotState st) => CurrentState = st;
 
-    /// <summary>
-    /// Calculates effective movement speed based on weight and a
-    /// caller provided state multiplier.
-    /// </summary>
-    /// <param name="stateModifier">Multiplier from <see cref="RobotStats"/>.</param>
     public float GetEffectiveSpeed(float stateModifier)
     {
-        float speedAfterWeight = stats.baseSpeed / stats.weight;
+        float speedAfterWeight = stats.baseSpeed / Mathf.Max(0.001f, stats.weight);
         return speedAfterWeight * stateModifier;
     }
 
-    private void HandleDeath()
-    {
-        var agent = GetAgent();
-        if (agent != null) agent.isStopped = true;
-        // Optional: UI or effects hook here
-    }
-
-    // Shorthand accessors so other scripts remain decoupled from field names.
     public NavMeshAgent GetAgent() => agent;
     public Perception GetPerception() => perception;
     public RobotStats GetStats() => stats;
     public RobotHealth GetHealth() => health;
-    public RobotObjective GetObjective() => decision.Decide();
+
+    // New accessor for helpers and states
+    public DecisionResult GetDecision() => _lastDecision;
+    #endregion
+
+    #region Private
+    private void HandleDeath()
+    {
+        if (agent != null) agent.isStopped = true;
+        // Optional: effects, UI, cleanup
+    }
+
+    private void HandleFiring(DecisionResult decision)
+    {
+        var enemy = decision.FireEnemy;
+        if (enemy == null) return;
+
+        // TODO: Plug in your weapons system here.
+        // Example placeholder:
+        // Weapons.TryShootAt(enemy.transform.position);
+
+        // Debug line to visualize firing while you wire weapons:
+        // Debug.DrawLine(transform.position + Vector3.up * 0.5f, enemy.transform.position + Vector3.up * 0.5f, Color.cyan, 0f, false);
+    }
     #endregion
 }

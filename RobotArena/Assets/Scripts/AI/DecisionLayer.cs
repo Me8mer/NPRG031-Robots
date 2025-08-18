@@ -1,22 +1,24 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum RobotObjectiveType
+public enum MovementIntent
 {
     Idle,
-    SeekPickup,
     ChaseEnemy,
-    AttackEnemy,
+    ChasePickup,
+    StrafeEnemy,
     Retreat
 }
 
-public struct RobotObjective
+public struct DecisionResult
 {
-    public RobotObjectiveType Type;
-    public RobotController TargetEnemy;
-    public Pickup TargetPickup;
-    public static RobotObjective Idle() => new() { Type = RobotObjectiveType.Idle };
-    public static RobotObjective Retreat() => new() { Type = RobotObjectiveType.Retreat };
+    // Movement channel
+    public MovementIntent Move;
+    public RobotController MoveEnemy; // used when Move is StrafeEnemy or ChaseEnemy
+    public Pickup MovePickup;         // used when Move is ChasePickup
+
+    // Fire channel
+    public RobotController FireEnemy; // shoot this if non-null, independent of movement
 }
 
 public abstract class DecisionLayer
@@ -29,9 +31,10 @@ public abstract class DecisionLayer
     }
 
     /// <summary>
-    /// Decide what the robot should focus on this frame.
+    /// Decide movement and firing for this frame. Movement is handled by FSM,
+    /// firing is handled directly by the controller.
     /// </summary>
-    public abstract RobotObjective Decide();
+    public abstract DecisionResult Decide();
 
     /// <summary>
     /// Helper to find nearest MonoBehaviour-based target.
@@ -42,8 +45,11 @@ public abstract class DecisionLayer
         float closestDist = float.MaxValue;
         Vector3 myPos = _controller.transform.position;
 
-        foreach (var item in items)
+        for (int i = 0; i < items.Count; i++)
         {
+            var item = items[i];
+            if (item == null) continue;
+
             float dist = Vector3.Distance(myPos, item.transform.position);
             if (dist < closestDist)
             {
@@ -55,6 +61,5 @@ public abstract class DecisionLayer
         return closest;
     }
 }
-
 
 

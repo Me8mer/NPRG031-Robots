@@ -47,8 +47,8 @@ public class RetreatState : IState
     public void Tick()
     {
         // If high-level goal changed, let the helper switch state
-        var objective = _controller.GetObjective();
-        if (objective.Type != RobotObjectiveType.Retreat)
+        var decision = _controller.GetDecision();
+        if (decision.Move != MovementIntent.Retreat)
         {
             StateTransitionHelper.HandleTransition(_fsm, _controller);
             return;
