@@ -13,7 +13,7 @@ public enum RobotObjectiveType
 public struct RobotObjective
 {
     public RobotObjectiveType Type;
-    public Enemy TargetEnemy;
+    public RobotController TargetEnemy;
     public Pickup TargetPickup;
     public static RobotObjective Idle() => new() { Type = RobotObjectiveType.Idle };
     public static RobotObjective Retreat() => new() { Type = RobotObjectiveType.Retreat };

@@ -22,15 +22,15 @@ public class Perception : MonoBehaviour
     private float lastEnemyCheckTime;
     private float lastPickupCheckTime;
     private List<Pickup> cachedVisiblePickups = new();
-
-    private List<Enemy> cachedVisibleEnemies = new();
+    
+    private List<RobotController> cachedVisibleEnemies = new();
 
     [Tooltip("Obstacle layers that block vision")]
     public LayerMask obstacleMask;
 
 
     [Header("Detection Layers")]
-    [Tooltip("Layer mask for enemy robots")]
+    [Tooltip("Layer mask for robots")]
     public LayerMask enemyMask;
     [Tooltip("Layer mask for pickups")]
     public LayerMask pickupMask;
@@ -93,7 +93,7 @@ public class Perception : MonoBehaviour
     }
 
 
-    public bool CanSeeEnemy(Enemy target)
+    public bool CanSeeEnemy(RobotController target)
     {
         Vector3 dir = (target.transform.position - transform.position).normalized;
         float halfAngle = stats.sightAngle * 0.5f;
@@ -101,7 +101,7 @@ public class Perception : MonoBehaviour
             return false;
 
         if (Physics.Raycast(transform.position, dir, out RaycastHit hit, stats.detectionRadius, obstacleMask))
-            return hit.transform.root == target;
+            return hit.transform.root == target.transform.root; 
 
         return true;
     }
@@ -109,7 +109,7 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Returns cached list of visible enemies, updating it at most every checkInterval seconds.
     /// </summary>
-    public List<Enemy> GetEnemiesInRange()
+    public List<RobotController> GetEnemiesInRange()
     {
         if (Time.time - lastEnemyCheckTime < checkInterval)
             return cachedVisibleEnemies;
@@ -122,18 +122,18 @@ public class Perception : MonoBehaviour
     /// <summary>
     /// Internal method that performs actual scan for visible enemies.
     /// </summary>
-    private List<Enemy> ScanForEnemiesInRange()
+    private List<RobotController> ScanForEnemiesInRange()
     {
-        List<Enemy> visibleEnemies = new();
+        List<RobotController> visibleEnemies = new();
         Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, enemyMask);
         float halfAngle = stats.sightAngle * 0.5f;
 
         foreach (var hit in hits)
         {
             Transform potentialEnemyRoot = hit.transform.root;
-            if (!potentialEnemyRoot.TryGetComponent<Enemy>(out var potentialEnemy))
+            if (!potentialEnemyRoot.TryGetComponent<RobotController>(out var potentialEnemy))
                 continue;
-            if (potentialEnemy == transform) continue; // skip self
+            if (potentialEnemy == controller) continue; // skip self
 
 
             Vector3 direction = (potentialEnemy.transform.position - transform.position).normalized;
@@ -145,7 +145,7 @@ public class Perception : MonoBehaviour
             // Line of sight check
             if (Physics.Raycast(transform.position, direction, out RaycastHit hitInfo, stats.detectionRadius, obstacleMask))
             {
-                if (hitInfo.transform.root != potentialEnemy)
+                if (hitInfo.transform.root != potentialEnemy.transform.root)
                     continue;
             }
 

@@ -42,7 +42,6 @@ public class RobotController : MonoBehaviour
     /// <summary>Currently active high‑level state.</summary>
     public RobotState CurrentState { get; private set; } = RobotState.Idle;
 
-    [SerializeField] private bool isPlayer = false;
 
     #region Unity Callbacks
     void Awake()
@@ -54,9 +53,8 @@ public class RobotController : MonoBehaviour
 
     void Start()
     {
-        decision = isPlayer
-            ? new PlayerDecisionLayer(this)
-            : new EnemyDecisionLayer(this);
+        // Single decision layer for all robots in PvP
+        decision = new PlayerDecisionLayer(this);
 
         stateMachine = new StateMachine();
         stateMachine.SetOwner(this);

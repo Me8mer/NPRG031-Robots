@@ -70,7 +70,7 @@ public class RetreatState : IState
         Vector3 origin = _controller.transform.position;
 
         // 1) Collect threats using Perception (already FOV+LOS filtered)
-        List<Enemy> threats = _perception.GetEnemiesInRange();
+        List<RobotController> threats = _perception.GetEnemiesInRange();
         if (threats.Count == 0)
         {
             // Nobody in sight → let the transition helper take us to Idle/Chase/etc.
@@ -113,7 +113,7 @@ public class RetreatState : IState
         _agent.SetDestination(best);
     }
 
-    private Vector3 ComputeAwayDirection(Vector3 origin, List<Enemy> threats)
+    private Vector3 ComputeAwayDirection(Vector3 origin, List<RobotController> threats)
     {
         Vector3 sum = Vector3.zero;
         for (int i = 0; i < threats.Count; i++)
@@ -128,7 +128,7 @@ public class RetreatState : IState
         return (sum.sqrMagnitude > 1e-6f) ? sum.normalized : Vector3.zero;
     }
 
-    private float ScoreCandidate(Vector3 point, Vector3 origin, List<Enemy> threats)
+    private float ScoreCandidate(Vector3 point, Vector3 origin, List<RobotController> threats)
     {
         // Prefer: bigger minimum distance to any threat, bigger average distance,
         // bonus if most threats lose LOS to the point, and actually moving away.

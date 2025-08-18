@@ -40,20 +40,27 @@ public class ChaseState : IState
 
     public void Tick()
     {
-        // Continue chasing if still valid
         var objective = _controller.GetObjective();
-        bool stillChase =
-            (objective.Type == RobotObjectiveType.ChaseEnemy && objective.TargetEnemy.transform == _target) ||
-            (objective.Type == RobotObjectiveType.SeekPickup && objective.TargetPickup.transform == _target);
+
+        bool stillChase = false;
+        if (objective.Type == RobotObjectiveType.ChaseEnemy && objective.TargetEnemy != null)
+        {
+            stillChase = (objective.TargetEnemy.transform == _target);
+        }
+        else if (objective.Type == RobotObjectiveType.SeekPickup && objective.TargetPickup != null)
+        {
+            stillChase = (objective.TargetPickup.transform == _target);
+        }
 
         if (stillChase)
         {
-            if (!_agent.pathPending)
+            if (_target != null && !_agent.pathPending)
+            {
                 _agent.SetDestination(_target.position);
+            }
             return;
         }
 
-        // Delegate transitions to helper
         StateTransitionHelper.HandleTransition(_stateMachine, _controller);
     }
 
