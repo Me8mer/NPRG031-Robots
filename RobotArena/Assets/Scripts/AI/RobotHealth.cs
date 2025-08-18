@@ -16,6 +16,9 @@ public class RobotHealth : MonoBehaviour
     /// <summary>Current armor points that will absorb damage first.</summary>
     public float CurrentArmor { get; private set; }
     /// <summary>Invoked once, immediately before the GameObject is destroyed.</summary>
+    /// --- Debug Inspector Mirrors ---
+    [SerializeField] private float debugHealth;
+    [SerializeField] private float debugArmor;
     public event Action OnDeath;
 
     #region Unity Lifecycle
@@ -29,22 +32,28 @@ public class RobotHealth : MonoBehaviour
 
     void Update()
     {
-        float regenRatePerSec;
+        float regenPerSec;
 
-        if (_controller.CurrentState == RobotState.Attack)
+        switch (_controller.CurrentState)
         {
-            regenRatePerSec = 0f; // MVP: no armor recovery while attacking
-        }
-        else if (_controller.CurrentState == RobotState.Chase)
-        {
-            regenRatePerSec = _stats.armorRegenChase;
-        }
-        else
-        {
-            regenRatePerSec = _stats.armorRegenIdle;
+            case RobotState.Attack:
+                regenPerSec = 0f;
+                break;
+            case RobotState.Chase:
+                regenPerSec = _stats.armorRegenChase;
+                break;
+            case RobotState.Retreat:
+                regenPerSec = _stats.armorRegenChase; 
+                break;
+            default:
+                regenPerSec = _stats.armorRegenIdle;
+                break;
         }
 
-        RegenerateArmor(regenRatePerSec * Time.deltaTime);
+        RegenerateArmor(regenPerSec * Time.deltaTime);
+        // Keep Inspector mirrors up to date
+        debugHealth = CurrentHealth;
+        debugArmor = CurrentArmor;
     }
     #endregion
 
@@ -69,6 +78,13 @@ public class RobotHealth : MonoBehaviour
             Die();
     }
     #endregion
+
+    [ContextMenu("Apply Debug Values")]
+    private void ApplyDebugValues()
+    {
+        CurrentHealth = Mathf.Clamp(debugHealth, 0f, _stats.maxHealth);
+        CurrentArmor = Mathf.Clamp(debugArmor, 0f, _stats.maxArmor);
+    }
 
 
     #region Private Helpers

@@ -18,14 +18,14 @@ public static class StateTransitionHelper
             case RobotObjectiveType.Idle:
                 if (currentState == RobotState.Idle) return;
                 break;
-            //case RobotObjectiveType.Retreat:
-            //    if (currentState == RobotState.Retreat) return;
-            //    break;
+            case RobotObjectiveType.Retreat:
+                if (currentState == RobotState.Retreat) return;
+                break;
             case RobotObjectiveType.AttackEnemy:
                 if (currentState == RobotState.Attack) return;
                 break;
             //case RobotObjectiveType.ChaseEnemy:
-            case RobotObjectiveType.SeekPickup:
+            case RobotObjectiveType.ChaseEnemy:
                 if (currentState == RobotState.Chase) return;
                 break;
         }
@@ -48,9 +48,11 @@ public static class StateTransitionHelper
                 fsm.ChangeState(new ChaseState(fsm, objective.TargetEnemy.transform));
                 break;
 
-            //case RobotObjectiveType.Retreat:
-            //    fsm.ChangeState(new RetreatState(fsm));
-            //    break;
+            case RobotObjectiveType.Retreat:
+                // Pass the current closest threat if you have it. Null still works.
+                var threat = objective.TargetEnemy != null ? objective.TargetEnemy.transform : null;
+                fsm.ChangeState(new RetreatState(fsm));
+                break;
 
             case RobotObjectiveType.Idle:
             default:

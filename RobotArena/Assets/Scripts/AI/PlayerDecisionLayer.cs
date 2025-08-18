@@ -20,6 +20,17 @@ public class PlayerDecisionLayer : DecisionLayer
 
         //Perception log
         //Debug.Log($"{_controller.name} sees {enemies.Count} enemies and {pickups.Count} pickups");
+
+        // Retreat if necessary
+        if (health.CurrentHealth <= 0.30f)
+        {
+            // If you can, also attach the most threatening enemy so Retreat knows the direction
+            var threat = perception.GetEnemiesInRange();
+            return new RobotObjective { Type = RobotObjectiveType.Retreat };
+            ; ; // add this helper ctor to your objective type
+        }
+
+
         // 1. Attack if enemy in range
         foreach (var enemy in enemies)
         {
