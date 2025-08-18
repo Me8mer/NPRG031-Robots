@@ -58,37 +58,50 @@ public class AttackState : IState
 
     public void Tick()
     {
-        if (_target == null)
-        {
-            StateTransitionHelper.HandleTransition(_stateMachine, _controller);
-            return;
-        }
-
-
         var obj = _controller.GetObjective();
-        if (obj.Type != RobotObjectiveType.AttackEnemy || obj.TargetEnemy == null || obj.TargetEnemy.transform != _target)
+
+        // If no valid objective → transition
+        if (obj.Type != RobotObjectiveType.AttackEnemy && obj.Type != RobotObjectiveType.SeekPickup)
         {
             StateTransitionHelper.HandleTransition(_stateMachine, _controller);
             return;
         }
 
+        // Always fire at enemy if present
+        if (obj.TargetEnemy != null)
+        {
+            // (Hook in your actual weapon shooting here)
+            // e.g. _controller.GetWeapons().TryShootAt(obj.TargetEnemy.transform.position);
+        }
 
+        // Movement depends on objective
+        if (obj.Type == RobotObjectiveType.SeekPickup && obj.TargetPickup != null)
+        {
+            // Go straight to pickup
+            if (!_agent.pathPending)
+            {
+                _agent.SetDestination(obj.TargetPickup.transform.position);
+            }
+            return;
+        }
 
+        // Else normal attack orbiting around enemy
+        if (obj.TargetEnemy == null || obj.TargetEnemy.transform != _target)
+        {
+            StateTransitionHelper.HandleTransition(_stateMachine, _controller);
+            return;
+        }
+
+        // existing orbiting/backoff logic unchanged below…
         Vector3 myPos = _controller.transform.position;
         Vector3 tgtPos = _target.position;
-
         Vector3 toTarget = tgtPos - myPos; toTarget.y = 0f;
         float dist = toTarget.magnitude;
 
-        // Our desired ring uses OUR weapon range, not theirs
         float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
-
-        // Hysteresis band in meters, based on our raw attackRange (not the ring),
-        // so the tolerance scales with weapon type
         float desired = Mathf.Max(0.1f, _controller.GetStats().attackRange);
-        float tol = Mathf.Max(1.0f, desired * 0.15f); // keep your hysteresis
+        float tol = Mathf.Max(1.0f, desired * 0.15f);
 
-        // 1) Too close -> back off outward to the ring
         if (dist < ring - tol)
         {
             if (dist > 0.05f)
@@ -100,29 +113,21 @@ public class AttackState : IState
             return;
         }
 
-        // 2) Too far -> do not move inward in Attack. Orbit at CURRENT radius.
         if (dist > ring + tol)
         {
-            // Project a tangential step and keep the SAME radius we have now
             Vector3 tangent = Vector3.Cross(Vector3.up, toTarget).normalized * _orbitDir;
             Vector3 drift = myPos + tangent * OrbitStep;
-
-            // reproject to current radius 'dist' so we do not close distance here
             Vector3 r = drift - tgtPos; r.y = 0f;
             if (r.sqrMagnitude < 0.0001f) r = (myPos - tgtPos);
             Vector3 onSameRadius = tgtPos + r.normalized * dist;
-
             SetDestSmart(onSameRadius);
             return;
         }
 
-        // 3) Within the band -> orbit on our ring
         {
             Vector3 onRing = GetOrbitPointOnRing(myPos, tgtPos, ring, _orbitDir, OrbitStep);
             SetDestSmart(onRing);
         }
-
-        // Add aim and fire here later
     }
 
 

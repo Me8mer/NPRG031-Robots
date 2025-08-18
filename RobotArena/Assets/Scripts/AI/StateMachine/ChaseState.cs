@@ -38,8 +38,9 @@ public class ChaseState : IState
         _agent.isStopped = false;
         _agent.speed = _controller.GetEffectiveSpeed(_controller.GetStats().chaseSpeedModifier);
 
+        // For pickups we don’t need attack ring, just run straight to them
         float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
-        _agent.stoppingDistance = Mathf.Max(0.25f, ring - 0.25f);
+        _agent.stoppingDistance = (_target.GetComponent<Pickup>() != null) ? 0.25f : Mathf.Max(0.25f, ring - 0.25f);
         _agent.autoBraking = true;
 
         _agent.SetDestination(_target.position);

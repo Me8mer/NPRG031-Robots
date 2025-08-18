@@ -12,8 +12,6 @@ public class Perception : MonoBehaviour
 {
     private RobotController controller;
     private RobotStats stats;
-    //private Transform cachedEnemy;
-    //private bool lastEnemyResult;
 
     /// <summary>How often (seconds) to refresh cached queries.</summary>
     //private float lastCheckTime;
@@ -21,8 +19,12 @@ public class Perception : MonoBehaviour
     private float lastEnemyCheckTime;
     private float lastPickupCheckTime;
     private float _lastAllOppCheckTime;
+    private float _lastAllPickupsCheckTime;
+    private List<Pickup> _cachedAllPickups = new();
+
     private static readonly Collider[] _enemyHits = new Collider[64];
     private static readonly Collider[] _pickupHits = new Collider[64];
+
     private List<Pickup> cachedVisiblePickups = new();
     private List<RobotController> _cachedAllOpponents = new();
     private List<RobotController> cachedVisibleEnemies = new();
@@ -32,6 +34,9 @@ public class Perception : MonoBehaviour
 
     [Tooltip("How often to refresh the global list of opponents")]
     public float allOpponentsCheckInterval = 1.0f;
+
+    [Tooltip("How often to refresh the global list of pickups")]
+    public float allPickupsCheckInterval = 1.0f;
 
     [Header("Detection Layers")]
     [Tooltip("Layer mask for robots")]
@@ -49,53 +54,86 @@ public class Perception : MonoBehaviour
     {
     }
 
-
+    // ---------------- PICKUPS ----------------
     /// <summary>
     /// Returns cached list of visible pickups, updating at most every checkInterval seconds.
     /// </summary>
-    public List<Pickup> GetPickupsInRange()
-    {
-        if (Time.time - lastPickupCheckTime < checkInterval)
-            return cachedVisiblePickups;
+    //public List<Pickup> GetPickupsInRange()
+    //{
+    //    if (Time.time - lastPickupCheckTime < checkInterval)
+    //        return cachedVisiblePickups;
 
-        lastPickupCheckTime = Time.time;
-        cachedVisiblePickups = ScanForPickupsInRange();
-        return cachedVisiblePickups;
+    //    lastPickupCheckTime = Time.time;
+    //    cachedVisiblePickups = ScanPickupsInRange();
+    //    return cachedVisiblePickups;
+    //}
+
+    ///// <summary>
+    ///// Performs actual scan for visible pickups.
+    ///// </summary>
+    //private List<Pickup> ScanForPickupsInRange()
+    //{
+    //    List<Pickup> visiblePickups = new();
+    //    Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, pickupMask);
+    //    float halfAngle = stats.sightAngle * 0.5f;
+
+    //    foreach (var hit in hits)
+    //    {
+    //        // Get root with Pickup
+    //        Transform pickupRoot = hit.transform.root;
+    //        if (!pickupRoot.TryGetComponent<Pickup>(out var pickup))
+    //            continue;
+
+    //        // Direction and FOV check
+    //        Vector3 direction = (pickup.transform.position - transform.position).normalized;
+    //        if (Vector3.Angle(transform.forward, direction) > halfAngle)
+    //            continue;
+
+    //        // Line-of-sight check
+    //        Vector3 eye = transform.position + Vector3.up * 0.5f;
+    //        if (Physics.Raycast(eye, direction, out RaycastHit hitInfo, stats.detectionRadius, obstacleMask))
+    //        {
+    //            if (hitInfo.transform.root != pickup.transform)
+    //                continue;
+    //        }
+
+    //        visiblePickups.Add(pickup);
+    //    }
+
+    //    return visiblePickups;
+    //}
+
+    // Perception.cs  (add alongside GetAllOpponents)
+    public List<Pickup> GetAllPickups()
+    {
+        if (Time.time - _lastAllPickupsCheckTime < allPickupsCheckInterval)
+            return _cachedAllPickups;
+
+        _lastAllPickupsCheckTime = Time.time;
+        _cachedAllPickups = ScanAllPickups();
+        return _cachedAllPickups;
     }
-    /// <summary>
-    /// Performs actual scan for visible pickups.
-    /// </summary>
-    private List<Pickup> ScanForPickupsInRange()
-    {
-        List<Pickup> visiblePickups = new();
-        Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, pickupMask);
-        float halfAngle = stats.sightAngle * 0.5f;
 
-        foreach (var hit in hits)
+    private List<Pickup> ScanAllPickups()
+    {
+        var list = new List<Pickup>();
+        var all = UnityEngine.Object.FindObjectsByType<Pickup>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None
+        );
+        for (int i = 0; i < all.Length; i++)
         {
-            Transform pickupRoot = hit.transform.root;
-            if (!pickupRoot.TryGetComponent<Pickup>(out var pickup))
-                continue;
-
-            Vector3 direction = (pickup.transform.position - transform.position).normalized;
-
-            // FOV check
-            if (Vector3.Angle(transform.forward, direction) > halfAngle)
-                continue;
-
-            // LOS check
-            if (Physics.Raycast(transform.position, direction, out RaycastHit hitInfo, stats.detectionRadius, obstacleMask))
-            {
-                if (hitInfo.transform.root != pickup)
-                    continue;
-            }
-
-            visiblePickups.Add(pickup);
+            var p = all[i];
+            if (p == null) continue;
+            if (!p.isActiveAndEnabled) continue;      // skip disabled or already consumed
+            if (!p.gameObject.activeInHierarchy) continue;
+            list.Add(p);
         }
-
-        return visiblePickups;
+        return list;
     }
 
+
+    // ---------------- OPPONENTS ----------------
 
     public bool CanSeeEnemy(RobotController target)
     {
