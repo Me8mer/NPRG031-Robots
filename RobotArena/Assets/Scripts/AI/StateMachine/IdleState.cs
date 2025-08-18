@@ -23,7 +23,8 @@ public class IdleState : IState
         _agent.speed = 0f;
 
         // full armor regen
-        _controller.GetHealth().SetArmorRegen(_controller.GetStats().armorRegenIdle);
+        //DEPOREACTED computed in health
+        //_controller.GetHealth().SetArmorRegen(_controller.GetStats().armorRegenIdle);
 
         Debug.Log($"{_controller.name} → Idle");
     }

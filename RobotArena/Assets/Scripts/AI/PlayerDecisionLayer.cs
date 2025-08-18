@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using static StateTransitionHelper;
 
 public class PlayerDecisionLayer : DecisionLayer
 {
@@ -11,41 +12,29 @@ public class PlayerDecisionLayer : DecisionLayer
         var stats = _controller.GetStats();
         var health = _controller.GetHealth();
 
-        float healthPercent = health.CurrentHealth / stats.maxHealth;
-
-        // 0) Retreat if low HP
-        if (healthPercent <= 0.30f)
+        float hpPct = health.CurrentHealth / stats.maxHealth;
+        if (hpPct <= 0.30f)
         {
             return RobotObjective.Retreat();
         }
 
-        var enemies = perception.GetEnemiesInRange();
-        var pickups = perception.GetPickupsInRange();
+        // whole-map awareness
+        var enemies = perception.GetAllOpponents();
+        if (enemies.Count == 0)
+            return RobotObjective.Idle();
 
-        // 1) Attack if enemy in range
-        foreach (var enemy in enemies)
+        // Attack if any enemy is inside attack range
+        for (int i = 0; i < enemies.Count; i++)
         {
-            if (Vector3.Distance(_controller.transform.position, enemy.transform.position) <= stats.attackRange)
+            var e = enemies[i]; if (e == null) continue;
+            if (CombatHelpers.InEffectiveAttackRange(_controller, e.transform, 1.5f))
             {
-                return new RobotObjective { Type = RobotObjectiveType.AttackEnemy, TargetEnemy = enemy };
+                return new RobotObjective { Type = RobotObjectiveType.AttackEnemy, TargetEnemy = e };
             }
         }
 
-        // 2) Prioritize pickup if visible
-        if (pickups.Count > 0)
-        {
-            var nearest = GetNearest(pickups);
-            return new RobotObjective { Type = RobotObjectiveType.SeekPickup, TargetPickup = nearest };
-        }
-
-        // 3) Chase enemy if any seen
-        if (enemies.Count > 0)
-        {
-            var nearest = GetNearest(enemies);
-            return new RobotObjective { Type = RobotObjectiveType.ChaseEnemy, TargetEnemy = nearest };
-        }
-
-        // 4) Idle
-        return RobotObjective.Idle();
+        // Else chase the nearest enemy
+        var nearest = GetNearest(enemies);
+        return new RobotObjective { Type = RobotObjectiveType.ChaseEnemy, TargetEnemy = nearest };
     }
 }

@@ -56,6 +56,8 @@ public class RobotController : MonoBehaviour
         // Single decision layer for all robots in PvP
         decision = new PlayerDecisionLayer(this);
 
+        health.OnDeath += HandleDeath;
+
         stateMachine = new StateMachine();
         stateMachine.SetOwner(this);
         stateMachine.Initialize(new IdleState(stateMachine));
@@ -82,6 +84,13 @@ public class RobotController : MonoBehaviour
     {
         float speedAfterWeight = stats.baseSpeed / stats.weight;
         return speedAfterWeight * stateModifier;
+    }
+
+    private void HandleDeath()
+    {
+        var agent = GetAgent();
+        if (agent != null) agent.isStopped = true;
+        // Optional: UI or effects hook here
     }
 
     // Shorthand accessors so other scripts remain decoupled from field names.

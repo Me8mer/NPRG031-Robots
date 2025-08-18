@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UnityEditor.PackageManager;
 using UnityEngine;
 
 
@@ -21,13 +20,18 @@ public class Perception : MonoBehaviour
     public float checkInterval = 0.2f;
     private float lastEnemyCheckTime;
     private float lastPickupCheckTime;
+    private float _lastAllOppCheckTime;
+    private static readonly Collider[] _enemyHits = new Collider[64];
+    private static readonly Collider[] _pickupHits = new Collider[64];
     private List<Pickup> cachedVisiblePickups = new();
-    
+    private List<RobotController> _cachedAllOpponents = new();
     private List<RobotController> cachedVisibleEnemies = new();
 
     [Tooltip("Obstacle layers that block vision")]
     public LayerMask obstacleMask;
 
+    [Tooltip("How often to refresh the global list of opponents")]
+    public float allOpponentsCheckInterval = 1.0f;
 
     [Header("Detection Layers")]
     [Tooltip("Layer mask for robots")]
@@ -100,8 +104,11 @@ public class Perception : MonoBehaviour
         if (Vector3.Angle(transform.forward, dir) > halfAngle)
             return false;
 
-        if (Physics.Raycast(transform.position, dir, out RaycastHit hit, stats.detectionRadius, obstacleMask))
-            return hit.transform.root == target.transform.root; 
+        Vector3 eye = transform.position + Vector3.up * 0.5f;
+        if (Physics.Raycast(eye, dir, out RaycastHit hit, stats.detectionRadius, obstacleMask))
+        {
+            return hit.transform.root == target.transform.root;
+        }
 
         return true;
     }
@@ -143,10 +150,10 @@ public class Perception : MonoBehaviour
                 continue;
 
             // Line of sight check
-            if (Physics.Raycast(transform.position, direction, out RaycastHit hitInfo, stats.detectionRadius, obstacleMask))
+            Vector3 eye = transform.position + Vector3.up * 0.5f;
+            if (Physics.Raycast(eye, direction, out RaycastHit info, stats.detectionRadius, obstacleMask))
             {
-                if (hitInfo.transform.root != potentialEnemy.transform.root)
-                    continue;
+                if (info.transform.root != potentialEnemy.transform.root) continue;
             }
 
             visibleEnemies.Add(potentialEnemy);
@@ -155,6 +162,35 @@ public class Perception : MonoBehaviour
         return visibleEnemies;
     }
 
+
+    public List<RobotController> GetAllOpponents()
+    {
+        if (Time.time - _lastAllOppCheckTime < allOpponentsCheckInterval)
+            return _cachedAllOpponents;
+
+        _lastAllOppCheckTime = Time.time;
+        _cachedAllOpponents = ScanAllOpponents();
+        return _cachedAllOpponents;
+    }
+
+    private List<RobotController> ScanAllOpponents()
+    {
+        var list = new List<RobotController>();
+        var all = UnityEngine.Object.FindObjectsByType<RobotController>(
+        FindObjectsInactive.Exclude,
+        FindObjectsSortMode.None
+        );
+        for (int i = 0; i < all.Length; i++)
+        {
+            var rc = all[i];
+            if (rc == null || rc == controller) continue;              // not me
+            var health = rc.GetHealth();
+            if (health != null && health.CurrentHealth <= 0f) continue; // skip dead
+            list.Add(rc);
+        }
+        return list;
+
+    }
 
 
 

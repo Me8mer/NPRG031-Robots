@@ -101,12 +101,13 @@ public class RobotHealth : MonoBehaviour
         Destroy(gameObject);
     }
 
-    public void SetArmorRegen(float ratePerSecond)
-    {
-        if (_controller.CurrentState == RobotState.Idle)
-            _stats.armorRegenIdle = ratePerSecond;
-        else if (_controller.CurrentState == RobotState.Chase)
-            _stats.armorRegenChase = ratePerSecond;
-    }
+    //DEPRECATED
+    //public void SetArmorRegen(float ratePerSecond)
+    //{
+    //    if (_controller.CurrentState == RobotState.Idle)
+    //        _stats.armorRegenIdle = ratePerSecond;
+    //    else if (_controller.CurrentState == RobotState.Chase)
+    //        _stats.armorRegenChase = ratePerSecond;
+    //}
     #endregion
 }

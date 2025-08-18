@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using static StateTransitionHelper;
 
 /// <summary>
 /// Pursues a specific target (enemy or pickup) until the decision layer requests a transition.
@@ -28,13 +29,20 @@ public class ChaseState : IState
                _target.position,
                Color.red,
                1f);
+        if (_target == null)
+        {
+            StateTransitionHelper.HandleTransition(_stateMachine, _controller);
+            return;
+        }
         _controller.SetCurrentState(RobotState.Chase);
-
-        // Start moving
         _agent.isStopped = false;
         _agent.speed = _controller.GetEffectiveSpeed(_controller.GetStats().chaseSpeedModifier);
-        _agent.SetDestination(_target.position);
 
+        float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
+        _agent.stoppingDistance = Mathf.Max(0.25f, ring - 0.25f);
+        _agent.autoBraking = true;
+
+        _agent.SetDestination(_target.position);
         Debug.Log($"{_controller.name} → Chase {_target.name}");
     }
 
@@ -56,7 +64,10 @@ public class ChaseState : IState
         {
             if (_target != null && !_agent.pathPending)
             {
-                _agent.SetDestination(_target.position);
+                if (Vector3.Distance(_agent.destination, _target.position) > 1.0f)
+                {
+                    _agent.SetDestination(_target.position);
+                }
             }
             return;
         }
