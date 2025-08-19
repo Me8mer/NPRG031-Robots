@@ -73,7 +73,7 @@ public static class StateTransitionHelper
         {
             if (self == null || target == null) return 0.1f;
 
-            float desired = Mathf.Max(0.1f, self.GetStats().attackRange);
+            float desired = Mathf.Max(0.1f, self.GetAttackRangeMeters());
 
             float myR = 0.5f;
             var myAgent = self.GetAgent();

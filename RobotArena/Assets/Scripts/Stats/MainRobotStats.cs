@@ -40,7 +40,7 @@ public class RobotStats : ScriptableObject
 
     #region Combat
     /// <summary>Effective weapon range (metres).</summary>
-    [Header("Combat")] public float attackRange = 8f;
+    [Header("Combat")] public float attackRange = 100f;
     /// <summary>Cooldown between successive shots (seconds).</summary>
     public float fireCooldown = 1f;
     #endregion

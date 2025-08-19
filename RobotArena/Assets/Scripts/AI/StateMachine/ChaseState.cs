@@ -34,14 +34,22 @@ public class ChaseState : IState
             StateTransitionHelper.HandleTransition(_stateMachine, _controller);
             return;
         }
+
         _controller.SetCurrentState(RobotState.Chase);
         _agent.isStopped = false;
         _agent.speed = _controller.GetEffectiveSpeed(_controller.GetStats().chaseSpeedModifier);
 
-        // For pickups we don’t need attack ring, just run straight to them
-        float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
-        _agent.stoppingDistance = (_target.GetComponent<Pickup>() != null) ? 0.25f : Mathf.Max(0.25f, ring - 0.25f);
-        _agent.autoBraking = true;
+        if (_target.GetComponent<Pickup>() != null)
+        {
+            _agent.stoppingDistance = 0f;
+            _agent.autoBraking = true;
+        }
+        else
+        {
+            float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
+            _agent.stoppingDistance = Mathf.Max(0.25f, ring - 0.25f);
+            _agent.autoBraking = true;
+        }
 
         _agent.SetDestination(_target.position);
         Debug.Log($"{_controller.name} → Chase {_target.name}");

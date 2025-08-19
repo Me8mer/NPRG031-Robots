@@ -40,6 +40,10 @@ public class RobotController : MonoBehaviour
     // Latest decision from the decision layer (movement + firing).
     private DecisionResult _lastDecision;
 
+    [Header("Combat")]
+    [SerializeField] private WeaponBase weapon;
+
+
     #region Unity
     void Awake()
     {
@@ -81,6 +85,12 @@ public class RobotController : MonoBehaviour
         return speedAfterWeight * stateModifier;
     }
 
+    public float GetAttackRangeMeters()
+    {
+        if (weapon != null) return weapon.EffectiveRange;
+        return stats.attackRange; // fallback
+    }
+
     public NavMeshAgent GetAgent() => agent;
     public Perception GetPerception() => perception;
     public RobotStats GetStats() => stats;
@@ -100,14 +110,26 @@ public class RobotController : MonoBehaviour
     private void HandleFiring(DecisionResult decision)
     {
         var enemy = decision.FireEnemy;
-        if (enemy == null) return;
+        if (enemy == null || weapon == null) return;
 
-        // TODO: Plug in your weapons system here.
-        // Example placeholder:
-        // Weapons.TryShootAt(enemy.transform.position);
+        // simple aim point at chest height so shots are less likely to hit the floor
+        Vector3 aimPoint = enemy.transform.position + Vector3.up * 0.5f;
 
-        // Debug line to visualize firing while you wire weapons:
-        // Debug.DrawLine(transform.position + Vector3.up * 0.5f, enemy.transform.position + Vector3.up * 0.5f, Color.cyan, 0f, false);
+        // WeaponController will do fire rate and range checks inside
+
+
+        if (weapon.TryFireAt(aimPoint))
+        {
+            Debug.Log($"{name} fired projectile at {enemy.name}");
+        }
+
+            // Optional debug line so you see when AI intends to fire
+            Debug.DrawLine(transform.position + Vector3.up * 0.5f, aimPoint, Color.cyan, 0f, false);
     }
+
     #endregion
+
+
+
+
 }

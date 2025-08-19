@@ -29,20 +29,7 @@ public class PlayerDecisionLayer : DecisionLayer
 
         // 2) Fire intent: best enemy in effective attack range (or null)
         var fireEnemy = FindBestEnemyInRange(perception);
-
-        // 3) Movement intent
-        if (fireEnemy != null)
-        {
-            // Enemy in range -> strafe that enemy
-            return new DecisionResult
-            {
-                Move = MovementIntent.StrafeEnemy,
-                MoveEnemy = fireEnemy,
-                FireEnemy = fireEnemy
-            };
-        }
-
-        // No enemy in range
+        // 🔑 Change: if there is any pickup, we CHASE PICKUP even if an enemy is in range.
         if (pickups != null && pickups.Count > 0)
         {
             var nearestPickup = GetNearest(pickups);
@@ -52,11 +39,23 @@ public class PlayerDecisionLayer : DecisionLayer
                 {
                     Move = MovementIntent.ChasePickup,
                     MovePickup = nearestPickup,
-                    FireEnemy = null
+                    FireEnemy = fireEnemy
                 };
             }
         }
 
+        // Otherwise, if enemy in range -> strafe that enemy
+        if (fireEnemy != null)
+        {
+            return new DecisionResult
+            {
+                Move = MovementIntent.StrafeEnemy,
+                MoveEnemy = fireEnemy,
+                FireEnemy = fireEnemy
+            };
+        }
+
+        // Else chase nearest enemy or idle
         if (enemies != null && enemies.Count > 0)
         {
             var nearestEnemy = GetNearest(enemies);
@@ -71,7 +70,7 @@ public class PlayerDecisionLayer : DecisionLayer
         // Nothing to do
         return new DecisionResult { Move = MovementIntent.Idle, FireEnemy = null };
     }
-
+        
     private RobotController FindBestEnemyInRange(Perception perception)
     {
         var enemies = perception.GetAllOpponents();
