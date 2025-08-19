@@ -6,21 +6,44 @@
 - On death (health reaches 0), a robot is eliminated.
 
 The match ends when one robot remains or all but one have been eliminated. The surviving robot is declared the winner.
-
 ## AI overview
-Robots (all players’ robots) use a **Finite State Machine (FSM)** with these states:
-- **Idle**: Scanning for opponents or bonus packs. Armor recovery 100%. Movement 0.  
-- **Chase**: Move toward the closest opponent (or pickup if visible). Armor recovery 50%. Movement 100%.  
-- **Attack**: Attack an opponent within weapon range. Armor recovery 0%. Movement 50%.  
-- **Retreat/Hide**: Run away from opponents when health ≤ 30%. Tries to break line of sight.  
 
-Every robot evaluates surroundings each frame and acts based on the following prioritized logic:
-- If an opponent is in weapon range → attack.
-- At the same time, if a bonus pack is visible → move toward the nearest bonus pack (unless state restricts movement).
-- If no opponent is in range but at least one is visible → chase the closest opponent.
-- If nothing is visible → idle and scan surroundings.
+Robots use a **Finite State Machine (FSM)** for **movement only** and a separate always-on **firing loop**.
 
-Robots may attack and move at the same time, depending on weapon and state rules. The FSM determines speed and armor regeneration. The decision layer decides whether to focus on an opponent or a pickup.
+### Movement states
+- **Idle**: Stand still and scan. Armor regen 100%. Movement 0.
+- **Chase**: Move toward a target. Target can be an enemy or a pickup. Armor regen 50%. Movement 100%.
+- **Strafe**: Orbit a specific enemy at weapon ring distance. Armor regen 0%. Movement 50%.
+- **Retreat**: Run away from visible enemies and try to break line of sight when health ≤ 30%.
+
+### Decision logic (each frame)
+The decision layer outputs two channels:
+
+- **MovementIntent**: one of `Idle`, `ChaseEnemy`, `ChasePickup`, `StrafeEnemy`, `Retreat`.
+- **FireIntent**: the best enemy in effective range, or `None`.
+
+**Priority**  
+1) If health ≤ threshold → **MovementIntent = Retreat**.  
+2) Else if any enemy is in effective range → **MovementIntent = StrafeEnemy** (around that enemy).  
+3) Else if any pickup exists on the map → **MovementIntent = ChasePickup** (nearest).  
+4) Else if any enemy exists → **MovementIntent = ChaseEnemy** (nearest).  
+5) Else → **MovementIntent = Idle**.
+
+**Firing is independent of movement.** If any enemy is in effective range and visible, the robot will aim and shoot every frame, even while chasing a pickup or retreating.
+
+Every robot evaluates surroundings each frame and acts based on:
+
+- Always shoot an enemy that is within effective range and visible.
+- If an enemy is in range → **Strafe** around that enemy.
+- Else if a pickup exists → **Chase** the pickup.
+- Else if an enemy exists → **Chase** the nearest enemy.
+- Else **Idle**.
+
+#### Decision Layer contract
+- **MovementIntent** controls the FSM transition only.
+- **FireIntent** selects a single enemy to shoot at, independent of the current movement state.
+- Pickups are discovered at whole‑map scope, enemies can be evaluated both in‑range (for firing) and whole‑map (for chasing).
+
 
 ## Match structure
 - Robots spawn at distinct spawn pads in the arena.
@@ -95,6 +118,8 @@ Derived from weapons:
 
 ## Debug
 For MVP debugging:
-- Show FSM state of each robot.
+- Show current **movement state** (Idle/Chase/Strafe/Retreat).
+- Show current **MovementIntent** and the chosen target (enemy or pickup).
+- Show **FireIntent** target if any (the enemy being shot).
 - Show active bonuses and cooldowns.
-- Show health and armor bars.  
+- Show health and armor bars.
