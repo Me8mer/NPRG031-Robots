@@ -1,4 +1,5 @@
 using UnityEngine;
+using System; 
 
 /// <summary>
 /// Identifies a collectible bonus pack that robots can seek and use.
@@ -16,6 +17,7 @@ public class Pickup : MonoBehaviour
 
     [Tooltip("Duration in seconds for temporary boosts. 0 means instant effect.")]
     public float Duration = 0f;
+    public static event Action PickupsChanged;
 
     private bool _consumed = false;
 
@@ -32,7 +34,7 @@ public class Pickup : MonoBehaviour
 
         // Deactivate or destroy
         gameObject.SetActive(false);
-        // Or Destroy(gameObject);
+        PickupsChanged?.Invoke();
     }
 
     private void OnTriggerEnter(Collider other)

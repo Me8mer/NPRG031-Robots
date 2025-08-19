@@ -11,6 +11,7 @@ public class StrafeState : IState
     private const float OrbitStep = 2.0f;      // meters per orbit step
     private const float MinRepathDist = 0.75f; // do not re-path if new dest is too close
     private const float PathCooldown = 0.10f;  // seconds between SetDestination calls
+    private const float RangeStickTolerance = 1.25f;
 
     private readonly StateMachine _fsm;
     private readonly RobotController _controller;
@@ -64,11 +65,14 @@ public class StrafeState : IState
         }
 
         var decision = _controller.GetDecision();
-        // Only stay here if we are still meant to strafe this same enemy
         if (decision.Move != MovementIntent.StrafeEnemy || decision.MoveEnemy == null || decision.MoveEnemy.transform != _enemy)
         {
-            StateTransitionHelper.HandleTransition(_fsm, _controller);
-            return;
+            // If we are right at the ring, allow one more frame to finish a path update.
+            if (!StateTransitionHelper.CombatHelpers.InEffectiveAttackRange(_controller, _enemy, RangeStickTolerance))
+            {
+                StateTransitionHelper.HandleTransition(_fsm, _controller);
+                return;
+            }
         }
 
         Vector3 myPos = _controller.transform.position;

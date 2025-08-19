@@ -230,6 +230,22 @@ public class Perception : MonoBehaviour
 
     }
 
+    // --- Invalidate for pickups ----
+    void OnEnable()
+    {
+        Pickup.PickupsChanged += InvalidatePickupsCache;
+    }
+    void OnDisable()
+    {
+        Pickup.PickupsChanged -= InvalidatePickupsCache;
+    }
+
+    public void InvalidatePickupsCache()
+    {
+        _cachedAllPickups.Clear();
+        _lastAllPickupsCheckTime = -999f; // force immediate rescan
+    }
+
 
 
     /// <summary>

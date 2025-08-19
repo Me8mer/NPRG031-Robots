@@ -36,6 +36,7 @@ public class RetreatState : IState
     {
         _controller.SetCurrentState(RobotState.Retreat);
         _agent.isStopped = false;
+        _agent.autoBraking = false; // keep speed while hopping between retreat points
         // Reasonable speed: same as Chase multiplier (fast get-out)
         _agent.speed = _controller.GetEffectiveSpeed(_stats.chaseSpeedModifier);
 

@@ -1,13 +1,48 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
+
 
 /// <summary>
 /// Movement transitions based on the controller's latest DecisionResult.
 /// </summary>
 public static class StateTransitionHelper
 {
+    // --- Transition tuning ---
+    private const float ChaseStrafeGate = 0.35f;   // gate flips between ChaseEnemy <-> StrafeEnemy
+    private const float TargetSwitchGate = 0.30f;  // gate rapid target retargets within same state
+
+    // Per-controller memory to reduce oscillations
+    private class Mem
+    {
+        public MovementIntent lastMove;
+        public Transform lastTarget;
+        public float gateUntil;
+        public float targetSwitchGateUntil;
+    }
+    private static readonly Dictionary<int, Mem> _mem = new();
+
+    private static Mem GetMem(RobotController c)
+    {
+        int id = c.GetInstanceID();
+        if (!_mem.TryGetValue(id, out var m))
+        {
+            m = new Mem();
+            _mem[id] = m;
+        }
+        return m;
+    }
+
+    // Allow RobotController to clean up on destroy
+    public static void Forget(RobotController c)
+    {
+        _mem.Remove(c.GetInstanceID());
+    }
+
+
     public static void HandleTransition(StateMachine fsm, RobotController controller)
     {
+
         var decision = controller.GetDecision();           // <-- NEW
         var currentState = controller.CurrentState;
 
