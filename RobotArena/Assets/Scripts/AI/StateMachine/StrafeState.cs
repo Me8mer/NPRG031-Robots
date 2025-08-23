@@ -13,6 +13,7 @@ public class StrafeState : IState
     private const float PathCooldown = 0.10f;  // seconds between SetDestination calls
     private const float RangeStickTolerance = 1.25f;
 
+
     private readonly StateMachine _fsm;
     private readonly RobotController _controller;
     private readonly NavMeshAgent _agent;
@@ -36,7 +37,7 @@ public class StrafeState : IState
 
         _agent.isStopped = false;
         _agent.autoBraking = false;
-        _agent.speed = _controller.GetEffectiveSpeed(_controller.GetStats().attackSpeedModifier);
+        _agent.speed = _controller.GetEffectiveSpeed(5f);
         _agent.stoppingDistance = 0.1f;
 
         _orbitDir = ((_controller.GetInstanceID() & 1) == 0) ? 1 : -1;
