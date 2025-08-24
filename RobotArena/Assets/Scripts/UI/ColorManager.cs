@@ -10,7 +10,7 @@ public class ColorManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown weaponColorDropdown;
     [SerializeField] private TMP_Dropdown coreColorDropdown;
 
-    [SerializeField] private PreviewAssembler assembler;
+    [SerializeField] private RobotAssembler assembler;
 
     // Inspector-overridable palette. Unity may serialize empty arrays here and override code initializers.
     [SerializeField] private string[] colorNames;

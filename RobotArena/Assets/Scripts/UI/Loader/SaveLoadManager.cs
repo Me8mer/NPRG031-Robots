@@ -7,8 +7,9 @@ using UnityEngine;
 public class SaveLoadManager : MonoBehaviour
 {
     [Header("Assembler + UI deps")]
-    [SerializeField] private PreviewAssembler assembler;
+    [SerializeField] private RobotAssembler assembler;
     [SerializeField] private DropdownManager dropdowns;
+    [SerializeField] private BodyPartsCatalog catalog;
     [SerializeField] private ColorManager colors;
     [SerializeField] private TMP_InputField nameInput;
     [SerializeField] private PanelManager panels;   
@@ -81,13 +82,14 @@ public class SaveLoadManager : MonoBehaviour
         return new RobotBuildData
         {
             robotName = robotName,
-            frameId = assembler.GetFrameId(iFrame),
+
+            frameId = catalog ? catalog.GetFrameId(iFrame) : "",
             frameIndex = iFrame,
-            lowerId = assembler.GetLowerId(iLower),
+            lowerId = catalog ? catalog.GetLowerId(iLower) : "",
             lowerIndex = iLower,
-            weaponId = assembler.GetWeaponId(iWeapon),
+            weaponId = catalog ? catalog.GetWeaponId(iWeapon) : "",
             weaponIndex = iWeapon,
-            coreId = assembler.GetCoreId(iCore),
+            coreId = catalog ? catalog.GetCoreId(iCore) : "",
             coreIndex = iCore,
 
             frameColor = new ColorData(colors.GetColor(iFrameCol)),
@@ -169,10 +171,10 @@ public class SaveLoadManager : MonoBehaviour
         colors.Init();       // populates color dropdowns and ensures palette
 
         // 3) Resolve part indices (prefer IDs)
-        int iFrame = assembler.FindFrameIndexById(data.frameId);
-        int iLower = assembler.FindLowerIndexById(data.lowerId);
-        int iWeapon = assembler.FindWeaponIndexById(data.weaponId);
-        int iCore = assembler.FindCoreIndexById(data.coreId);
+        int iFrame = catalog.FindFrameIndexById(data.frameId);
+        int iLower = catalog.FindLowerIndexById(data.lowerId);
+        int iWeapon = catalog.FindWeaponIndexById(data.weaponId);
+        int iCore = catalog.FindCoreIndexById(data.coreId);
 
         // Apply part indices to UI safely
         dropdowns.SetPartIndices(iFrame, iLower, iWeapon, iCore);

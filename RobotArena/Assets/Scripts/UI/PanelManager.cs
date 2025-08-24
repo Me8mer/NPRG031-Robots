@@ -10,7 +10,16 @@ public class PanelManager : MonoBehaviour
     public void ShowMainMenu() => ShowOnly(mainMenuPanel);
     public void ShowBuild() => ShowOnly(buildPanel);
     public void ShowLoad() => ShowOnly(loadPanel);
-    public void ShowPlayerLoad() => ShowOnly(playerLoaderPanel);
+    public void ShowPlayerLoad()
+    {
+        ShowOnly(playerLoaderPanel);
+        if (playerLoaderPanel)
+        {
+            Debug.Log($"PlayerLoaderDropdownUI");
+            var loader = playerLoaderPanel.GetComponentInChildren<PlayerLoaderUI>(true);
+            if (loader) loader.RefreshList();
+        }
+    }
 
     private void ShowOnly(GameObject panel)
     {

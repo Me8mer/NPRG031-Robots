@@ -8,7 +8,8 @@ public class BuilderUI : MonoBehaviour
     [SerializeField] private ColorManager colors;
     [SerializeField] private StatsPanel stats;
     [SerializeField] private SaveLoadManager saveLoad;
-    [SerializeField] private PreviewAssembler assembler;
+    [SerializeField] private RobotAssembler assembler;
+
 
     private void Awake()
     {
