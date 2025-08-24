@@ -1,0 +1,83 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2483346539675309006
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8325489268446385809}
+  - component: {fileID: 938685790936581901}
+  m_Layer: 0
+  m_Name: BodyPartsCatalog
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8325489268446385809
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2483346539675309006}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &938685790936581901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2483346539675309006}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75de776f3ee088d40bd58ebec3a8dc4d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  frames:
+  - id: Balanced Frame
+    prefab: {fileID: 539962282680547255, guid: cc19cff529285094c886fbc417911bb8, type: 3}
+    definition: {fileID: 11400000, guid: b49f228ae7c4bd04b9125e05e6750897, type: 2}
+  - id: Heavy Frame
+    prefab: {fileID: 7784360692287040713, guid: ad1b2191757c85e449121440a68be309, type: 3}
+    definition: {fileID: 11400000, guid: 07b781f9af4492b498d0505fb5a5ea71, type: 2}
+  - id: Light Frame
+    prefab: {fileID: 1580113547466958589, guid: 5898383c2e27fb24aa9cd34066f3e7ec, type: 3}
+    definition: {fileID: 11400000, guid: 17f6f24b63b7d6a40aabe9dbe9507ab2, type: 2}
+  lowers:
+  - id: Legs
+    prefab: {fileID: 7723833032924483297, guid: 22b8995f239ebb54f9fdab040d4afd1e, type: 3}
+    definition: {fileID: 11400000, guid: 143c200d3214c8249a8f2a63af2dc4c6, type: 2}
+  - id: Tracks
+    prefab: {fileID: 2699068225043409991, guid: 8faeadf5a79f07d449b21b9e4d1d5497, type: 3}
+    definition: {fileID: 11400000, guid: 04b96508a52e2c74aa02546a5bf66074, type: 2}
+  - id: Wheels
+    prefab: {fileID: 6385035144568761883, guid: 474123bd18010fc43a9ae670cbf65d0c, type: 3}
+    definition: {fileID: 11400000, guid: 6df900344ffbd0d498a7b872e29651d1, type: 2}
+  weapons:
+  - id: Lasergun
+    prefab: {fileID: 296491736759018200, guid: 76ac284207fcdf7419c7db6d2f2c3476, type: 3}
+    definition: {fileID: 11400000, guid: bb6859025e5ffd14398351321e3b5806, type: 2}
+  - id: Pistols
+    prefab: {fileID: 6895209033769070689, guid: 74687431e85baaf419f8ce9efa3fe37a, type: 3}
+    definition: {fileID: 11400000, guid: d50d2bd29f92ae64a8a17e06e02673a1, type: 2}
+  - id: Sawgun
+    prefab: {fileID: 5803103833440240977, guid: 49235e65661611749b35623f6f2c63ab, type: 3}
+    definition: {fileID: 11400000, guid: 7d5faec3da2756d46a7e1891926df09a, type: 2}
+  cores:
+  - id: Energy Core
+    prefab: {fileID: 2744628029158565866, guid: ec10a8182670f224bbae1d0ddd7722af, type: 3}
+    definition: {fileID: 11400000, guid: bdbafd28564ea8142a78269c641d11d2, type: 2}
+  - id: Armor Core
+    prefab: {fileID: 3339172699494339801, guid: c035dd0e53a7889419319389a75a3a79, type: 3}
+    definition: {fileID: 11400000, guid: 02eec67f144555547ae9426b94d129a2, type: 2}

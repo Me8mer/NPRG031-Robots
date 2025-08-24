@@ -213,9 +213,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   checkInterval: 0.2
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 0
+  allOpponentsCheckInterval: 1
+  allPickupsCheckInterval: 1
   enemyMask:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 0
   pickupMask:
     serializedVersion: 2
     m_Bits: 512
@@ -231,6 +236,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35552c856df9aa74db6c3c0714d432dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugHealth: 0
+  debugArmor: 0
 --- !u!114 &5869974665566728108
 MonoBehaviour:
   m_ObjectHideFlags: 0
