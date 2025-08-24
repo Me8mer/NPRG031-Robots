@@ -15,6 +15,9 @@ public class ChaseState : IState
     private readonly RobotController _controller;
     private readonly NavMeshAgent _agent;
     private readonly Transform _target;
+    private CombatNavigator _nav;
+    private float _oldStoppingDistance;
+    private bool _patchedStoppingDistance;
 
     /// <summary>
     /// Creates a new ChaseState that will follow <paramref name="target"/>.
@@ -25,6 +28,7 @@ public class ChaseState : IState
         _controller = fsm.Owner;
         _agent = _controller.GetAgent();
         _target = target;
+        _nav = _controller.GetNavigator();
     }
 
     public void Enter()
@@ -43,8 +47,8 @@ public class ChaseState : IState
         _chasingPickup = _target.GetComponent<Pickup>() != null;
 
         _agent.isStopped = false;
-        _agent.speed = _controller.GetEffectiveSpeed(_controller.GetStats().chaseSpeedModifier);
-        _agent.stoppingDistance = 0.15f;   // small cushion
+        _agent.speed = _controller.GetEffectiveSpeed(1.5F);
+        _agent.stoppingDistance = 0.05f;   // small cushion
         _agent.autoBraking = false;        // do not full-stop at the point
         _agent.acceleration = Mathf.Max(_agent.acceleration, 16f); // snappier restart
 
@@ -61,9 +65,9 @@ public class ChaseState : IState
         }
         else
         {
-            float ring = CombatHelpers.ComputeAttackRing(_controller, _target, 0.25f);
-            _agent.stoppingDistance = Mathf.Max(0.25f, ring - 0.25f);
-            _agent.autoBraking = true;   // gentle braking before ring
+            float ring = _nav.ComputeAttackRing(_target, 5.25f);
+            _agent.stoppingDistance = 0.05f;
+            _agent.autoBraking = false;   // gentle braking before ring
         }
 
         _agent.SetDestination(_target.position);
@@ -73,9 +77,16 @@ public class ChaseState : IState
 
     public void Tick()
     {
-        var decision = _controller.GetDecision();
+        if (_target == null)
+        {
+            StateTransitionHelper.HandleTransition(_stateMachine, _controller);
+            return;
+        }
 
+
+        var decision = _controller.GetDecision();
         bool stillChase = false;
+
         if (decision.Move == MovementIntent.ChaseEnemy && decision.MoveEnemy != null)
         {
             stillChase = (decision.MoveEnemy.transform == _target);
@@ -87,16 +98,16 @@ public class ChaseState : IState
 
         if (stillChase)
         {
+            // DecisionLayer will flip us to Strafe when LOF is true.
             if (Time.time >= _nextPathTime && !_agent.pathPending)
             {
-                float drift = Vector3.Distance(_agent.destination, _target.position);
-                if (drift > MinRepathDist)
+                Vector3 goal = GetChaseGoal();
+                if (Vector3.Distance(_agent.destination, goal) > MinRepathDist)
                 {
-                    _agent.SetDestination(_target.position);
+                    _agent.SetDestination(goal);
                     _nextPathTime = Time.time + PathCooldown;
                 }
             }
-            return;
         }
 
         StateTransitionHelper.HandleTransition(_stateMachine, _controller);
@@ -105,6 +116,25 @@ public class ChaseState : IState
 
     public void Exit()
     {
-        // No cleanup needed
+        if (_agent && _patchedStoppingDistance)
+        {
+            _agent.stoppingDistance = _oldStoppingDistance; // restore
+            _patchedStoppingDistance = false;
+        }
+    }
+
+    private Vector3 GetChaseGoal()
+    {
+        // Start from the enemy pivot
+        Vector3 goal = _target.position;
+
+        // Sample a reachable NavMesh point near them.
+        // Radius: just a bit larger than our agent to avoid hugging the wall edge.
+        float sampleRadius = _agent ? Mathf.Max(1.0f, _agent.radius + 0.5f) : 1.0f;
+
+        if (UnityEngine.AI.NavMesh.SamplePosition(goal, out var hit, sampleRadius, UnityEngine.AI.NavMesh.AllAreas))
+            goal = hit.position;
+
+        return goal;
     }
 }

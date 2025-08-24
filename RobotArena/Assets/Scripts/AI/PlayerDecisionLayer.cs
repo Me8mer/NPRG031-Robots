@@ -15,6 +15,7 @@ public class PlayerDecisionLayer : DecisionLayer
     private RobotController _strafeStickyTarget;
     private float _strafeStickyUntil;
 
+
     public PlayerDecisionLayer(RobotController controller) : base(controller) { }
 
     public override DecisionResult Decide()
@@ -85,6 +86,7 @@ public class PlayerDecisionLayer : DecisionLayer
     {
         if (enemies == null || enemies.Count == 0) return null;
 
+        var nav = _controller.GetNavigator();
         RobotController best = null;
         float bestDist = float.MaxValue;
         Vector3 me = _controller.transform.position;
@@ -92,14 +94,13 @@ public class PlayerDecisionLayer : DecisionLayer
         for (int i = 0; i < enemies.Count; i++)
         {
             var e = enemies[i]; if (e == null) continue;
-            if (CombatHelpers.InEffectiveAttackRange(_controller, e.transform, RangeTolerance))
+            if (nav.InEffectiveAttackRange(e.transform, RangeTolerance))
             {
+                // Use muzzle LOF
+                if (!nav.HasLineOfFireTo(e.transform)) continue;
+
                 float d = Vector3.Distance(me, e.transform.position);
-                if (d < bestDist)
-                {
-                    best = e;
-                    bestDist = d;
-                }
+                if (d < bestDist) { best = e; bestDist = d; }
             }
         }
         return best;
@@ -123,8 +124,8 @@ public class PlayerDecisionLayer : DecisionLayer
         // Keep strafing the same target for a short time as long as it remains in range.
         if (_strafeStickyTarget != null && Time.time < _strafeStickyUntil)
         {
-            if (_strafeStickyTarget != null &&
-                CombatHelpers.InEffectiveAttackRange(_controller, _strafeStickyTarget.transform, RangeTolerance))
+            var nav = _controller.GetNavigator();
+            if (_strafeStickyTarget != null &&  nav.InEffectiveAttackRange(_strafeStickyTarget.transform, RangeTolerance))
             {
                 return _strafeStickyTarget;
             }

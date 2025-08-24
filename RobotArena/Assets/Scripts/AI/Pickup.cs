@@ -1,52 +1,74 @@
 using UnityEngine;
-using System; 
+using System;
 
-/// <summary>
-/// Identifies a collectible bonus pack that robots can seek and use.
-/// </summary>
 [RequireComponent(typeof(Collider))]
 public class Pickup : MonoBehaviour
 {
     public enum PickupType { Health, Armor, DamageBoost, SpeedBoost }
 
-    [Header("Pickup Settings")]
-    public PickupType Type;
+    [Header("Generic Pickup Settings")]
+    [Tooltip("If true, the pickup will choose a random effect on consume.")]
+    public bool randomizeEffect = true;
 
-    [Tooltip("How much value this pickup provides (HP restored, armor restored, or % boost).")]
+    [Tooltip("For Health or Armor: absolute points.\nFor boosts: percent value, e.g. 25 = +25%.")]
     public float Value = 25f;
 
-    [Tooltip("Duration in seconds for temporary boosts. 0 means instant effect.")]
-    public float Duration = 0f;
+    [Tooltip("Duration for temporary boosts. If 0 or less, a sensible default is used.")]
+    public float Duration = 12f;
+
     public static event Action PickupsChanged;
 
-    private bool _consumed = false;
+    private bool _consumed;
 
-    /// <summary>
-    /// Called when a robot collects this pickup.
-    /// </summary>
     public void Consume(RobotController collector)
     {
-        if (_consumed) return;
+        if (_consumed || collector == null) return;
         _consumed = true;
 
-        // TODO: Apply effect here later
-        Debug.Log($"{collector.name} collected {Type} pickup!");
+        // Pick a random effect at pickup-time
+        var chosen = GetChosenType();
+        ApplyEffect(chosen, collector);
 
-        // Deactivate or destroy
+        // Deactivate and notify perception caches
         gameObject.SetActive(false);
         PickupsChanged?.Invoke();
+        Debug.Log($"{collector.name} collected {chosen} pickup!");
+    }
+
+    private PickupType GetChosenType()
+    {
+        if (!randomizeEffect) return PickupType.Health; // fallback if you ever want a fixed effect
+        var types = (PickupType[])Enum.GetValues(typeof(PickupType));
+        return types[UnityEngine.Random.Range(0, types.Length)];
+    }
+
+    private void ApplyEffect(PickupType type, RobotController c)
+    {
+        var health = c.GetHealth();
+        switch (type)
+        {
+            case PickupType.Health:
+                if (health != null) health.Heal(Value);
+                break;
+
+            case PickupType.Armor:
+                if (health != null) health.RestoreArmor(Value);
+                break;
+
+            case PickupType.DamageBoost:
+                c.ApplyTimedDamageBoost(Value, Duration > 0f ? Duration : 6f);
+                break;
+
+            case PickupType.SpeedBoost:
+                c.ApplyTimedSpeedBoost(Value, Duration > 0f ? Duration : 6f);
+                break;
+        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log($"Pickup {name} triggered by {other.name}");
-
         if (_consumed) return;
-
         var robot = other.GetComponentInParent<RobotController>();
-        if (robot != null)
-        {
-            Consume(robot);
-        }
+        if (robot != null) Consume(robot);
     }
 }

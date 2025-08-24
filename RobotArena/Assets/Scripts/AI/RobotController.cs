@@ -8,7 +8,6 @@ public enum RobotState
 {
     Idle,
     Chase,
-    Attack,   // currently used by StrafeState
     Retreat,
     Strafe
 }
@@ -34,23 +33,21 @@ public class RobotController : MonoBehaviour
 
     [Header("Rotation and Aim")]
     [Tooltip("Degrees per second for lower body yaw")]
-    [SerializeField] private float lowerTurnSpeed = 180f;
+    [SerializeField] private float lowerTurnSpeed;
     [Tooltip("Degrees per second for upper body yaw")]
-    [SerializeField] private float upperTurnSpeed = 360f;
-    [Tooltip("Max signed yaw offset the upper body may rotate relative to lower body")]
-    [SerializeField] private float maxUpperYawFromLower = 80f;
+    [SerializeField] private float upperTurnSpeed;
     [Tooltip("Angle tolerance to consider aim 'locked' for firing")]
     [SerializeField] private float aimToleranceDeg = 3f;
-    [Tooltip("If the upper yaw exceeds this, request lower body to help re-center")]
-    [SerializeField] private float reCenterThresholdDeg = 60f;
+
 
     [Header("Combat")]
     [SerializeField] private WeaponBase weapon;
     [Tooltip("Layers that can block shots")]
-    [SerializeField] private LayerMask fireObstaclesMask = ~0;
+    [SerializeField] private LayerMask fireObstaclesMask = 0;
 
     [Header("Debug")]
     [SerializeField] private bool drawDebug = true;
+    [SerializeField] private bool controlLocked = false;
 
     [Header("Data")]
     public RobotStats stats;
@@ -61,6 +58,11 @@ public class RobotController : MonoBehaviour
     private Perception _perception;
     private RobotHealth _health;
     private DecisionLayer _decision;
+    private CombatNavigator _navigator;
+    private TargetingSolver _targeting;
+
+    private float _speedBoostMultiplier = 1f;
+    private float _maxMoveSpeed;   // final, weight-adjusted max speed computed once
 
 
     public RobotState CurrentState { get; private set; } = RobotState.Idle;
@@ -78,8 +80,13 @@ public class RobotController : MonoBehaviour
         _perception = GetComponent<Perception>();
         _health = GetComponent<RobotHealth>();
 
-        // Let us control lower body rotation manually for consistent separation of concerns
-        _agent.updateRotation = false;
+        if (stats == null) stats = new RobotStats();
+        _navigator = new CombatNavigator(this);
+        _targeting = new TargetingSolver(this);
+
+        if (_agent != null) _agent.updateRotation = false;
+        _targeting = new TargetingSolver(this);
+        _navigator = new CombatNavigator(this);
         _weaponRange = weapon != null ? weapon.EffectiveRange : stats.attackRange;
     }
 
@@ -101,6 +108,7 @@ public class RobotController : MonoBehaviour
 
     void Update()
     {
+        if (controlLocked) return;
         _lastDecision = _decision.Decide();
 
         // 2) Apply lower body facing from movement intent or agent velocity
@@ -112,6 +120,7 @@ public class RobotController : MonoBehaviour
 
         // 4) Handle firing regardless of current movement state, but only when properly gated
         HandleFiring(aimPoint, aimLocked);
+        if (_agent) _agent.speed = GetEffectiveSpeed(GetStateSpeedModifier());
 
         // 5) Tick movement FSM. States will read GetDecision() and transition via helper
         _stateMachine.Tick();
@@ -119,14 +128,70 @@ public class RobotController : MonoBehaviour
     #endregion
 
     #region Public API
+    public void SetControlLocked(bool locked)
+    {
+        controlLocked = locked;
+        if (_agent)
+        {
+            _agent.isStopped = locked;
+            _agent.velocity = Vector3.zero;
+            _agent.ResetPath();
+        }
+    }
     public void SetCurrentState(RobotState st) => CurrentState = st;
-
+    public Transform GetFirePointTransform() => firePoint != null ? firePoint : upperBody;
+    public TargetingSolver GetTargeting() => _targeting;
+    public CombatNavigator GetNavigator() => _navigator;
+    public LayerMask GetFireObstaclesMask()
+    {
+        // Same fallback rule as HandleFiring
+        return (fireObstaclesMask.value != 0) ? fireObstaclesMask : _perception.obstacleMask;
+    }
     public float GetEffectiveSpeed(float stateModifier)
     {
-        float speedAfterWeight = stats.baseSpeed / Mathf.Max(0.001f, stats.weight);
-        return speedAfterWeight * stateModifier;
+        float baseMax = _maxMoveSpeed > 0f
+            ? _maxMoveSpeed
+            : (stats.baseSpeed / Mathf.Max(0.001f, stats.weight));
+        return baseMax * stateModifier * _speedBoostMultiplier;
+    }
+    public void ApplyTimedSpeedBoost(float percent, float seconds)
+    {
+        if (percent <= 0f) return;
+        float mult = 1f + percent / 100f;
+        StartCoroutine(SpeedBoostRoutine(mult, Mathf.Max(0f, seconds)));
+    }
+    private System.Collections.IEnumerator SpeedBoostRoutine(float mult, float seconds)
+    {
+        _speedBoostMultiplier *= mult;
+        if (_agent) _agent.speed = GetEffectiveSpeed(GetStateSpeedModifier());
+        yield return new WaitForSeconds(seconds);
+        _speedBoostMultiplier /= mult;
+        if (_agent) _agent.speed = GetEffectiveSpeed(GetStateSpeedModifier());
     }
 
+    public void ApplyTimedDamageBoost(float percent, float seconds)
+    {
+        if (percent <= 0f) return;
+        float mult = 1f + percent / 100f;
+        stats.damage *= mult;
+        StartCoroutine(DamageBoostRoutine(mult, Mathf.Max(0f, seconds)));
+    }
+    private float GetStateSpeedModifier()
+    {
+        switch (CurrentState)
+        {
+            case RobotState.Chase: return 1.5f;
+            case RobotState.Retreat: return 5f;
+            case RobotState.Strafe: return 1f;
+            default: return 1f;
+        }
+    }
+
+    private System.Collections.IEnumerator DamageBoostRoutine(float mult, float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        stats.damage /= mult;
+    }
     public float GetAttackRangeMeters()
     {
         if (weapon != null) return weapon.EffectiveRange;
@@ -135,7 +200,11 @@ public class RobotController : MonoBehaviour
 
     public NavMeshAgent GetAgent() => _agent;
     public Perception GetPerception() => _perception;
-    public RobotStats GetStats() => stats;
+    public RobotStats GetStats()
+    {
+        if (stats == null) stats = new RobotStats();
+        return stats;
+    }
     public RobotHealth GetHealth() => _health;
 
     // New accessor for helpers and states
@@ -153,46 +222,78 @@ public class RobotController : MonoBehaviour
         if (vel.sqrMagnitude > 0.001f)
         {
             Quaternion target = Quaternion.LookRotation(vel.normalized, Vector3.up);
-            lowerBody.rotation = Quaternion.RotateTowards(lowerBody.rotation, target, lowerTurnSpeed * Time.deltaTime);
+            lowerBody.rotation = Quaternion.RotateTowards(lowerBody.rotation, target, stats.turningSpeed * Time.deltaTime);
         }
     }
 
     /// <summary>
-    /// Computes the current aim point, usually the enemy chest. Returns null when no valid target.
+    /// Computes the current aim point above ground. Returns null when no valid target.
     /// </summary>
     private Vector3? ComputeAimPoint(DecisionResult decision)
     {
-        var enemy = decision.FireEnemy;
-        if (enemy == null) return null;
-
-        Vector3 p = enemy.transform.position + Vector3.up * 0.5f;
-        return p;
+        return _targeting.AimPoint(decision.FireEnemy);
     }
+
+    public void ApplyMovementFromStats()
+    {
+        // Bake weight into the max speed ONCE
+        float baseSpeed = Mathf.Max(0f, stats.baseSpeed);
+        float weight = Mathf.Max(0.001f, stats.weight);
+        _maxMoveSpeed = baseSpeed / weight;
+
+        // Push to NavMeshAgent so default movement uses this max
+        if (_agent != null)
+        {
+            _agent.speed = _maxMoveSpeed;
+            _agent.acceleration = Mathf.Max(_agent.acceleration, _maxMoveSpeed * 4f);
+            _agent.angularSpeed = Mathf.Max(120f, stats.turningSpeed); // use your turning stat if it’s in deg/s
+        }
+    }
+
+
 
     /// <summary>
     /// Rotate the upper body toward the aim point, clamped within the allowed firing arc relative to lower body.
     /// Returns true if within aim tolerance.
     /// </summary>
+    /// <summary>
+    /// Rotate the upper body toward the aim point on the horizontal plane and pitch the muzzle to the true aim point.
+    /// Returns true if the muzzle is within aim tolerance.
+    /// </summary>
     private bool ApplyUpperBodyAiming(Vector3? aimPointOpt)
     {
-        if (aimPointOpt == null) return false;
-
+        if (aimPointOpt == null || upperBody == null || firePoint == null) return false;
         Vector3 aimPoint = aimPointOpt.Value;
 
-        // Desired yaw direction on the horizontal plane
-        Vector3 toAim = aimPoint - upperBody.position;
-        toAim.y = 0f;
-        if (toAim.sqrMagnitude < 0.0001f) return false;
+        // 1) Yaw turret (upper body) on the horizontal plane
+        Vector3 flatDir = new Vector3(aimPoint.x, upperBody.position.y, aimPoint.z) - upperBody.position;
+        if (flatDir.sqrMagnitude > 0.0001f)
+        {
+            Quaternion yawOnly = Quaternion.LookRotation(flatDir.normalized, Vector3.up);
+            upperBody.rotation = Quaternion.RotateTowards(upperBody.rotation, yawOnly, stats.turningSpeed * Time.deltaTime);
 
-        Quaternion desiredUpper = Quaternion.LookRotation(toAim.normalized, Vector3.up);
+        }
 
-        // Free 360° turret rotation
-        upperBody.rotation = Quaternion.RotateTowards(upperBody.rotation, desiredUpper, upperTurnSpeed * Time.deltaTime);
+        // 2) Pitch muzzle to the real 3D aim point
+        Vector3 trueDir = aimPoint - firePoint.position;
+        if (trueDir.sqrMagnitude > 0.0001f)
+        {
+            firePoint.rotation = Quaternion.LookRotation(trueDir.normalized, Vector3.up);
+        }
 
-        // Aim lock check against the desired yaw
-        float currentDelta = Mathf.Abs(SignedDeltaAngle(upperBody.eulerAngles.y, desiredUpper.eulerAngles.y));
-        return currentDelta <= aimToleranceDeg;
+        // 3) Lock check: use muzzle alignment for accuracy
+        float angleToTarget = Vector3.Angle(firePoint.forward, trueDir);
+        bool locked = angleToTarget <= aimToleranceDeg;
+
+        // Debug lines
+        if (drawDebug)
+        {
+            Debug.DrawLine(firePoint.position, aimPoint, locked ? Color.cyan : Color.green, 0f, false);
+            Debug.DrawRay(aimPoint, Vector3.up * 0.25f, Color.magenta, 0f, false);
+        }
+        return locked;
     }
+
     #endregion
 
     #region Firing
@@ -243,13 +344,9 @@ public class RobotController : MonoBehaviour
         if (drawDebug) Debug.DrawLine(muzzle, aimPoint, Color.green, 0f, false);
 
         // If any obstacle is between muzzle and target, block
-        if (Physics.Raycast(muzzle, dir, out RaycastHit hit, rayLen, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (!_targeting.HasLineOfFire(muzzle, aimPoint, obstacleMask))
         {
-            if (drawDebug)
-            {
-                Debug.DrawLine(muzzle, hit.point, Color.red, 0f, false);
-                //Debug.Log($"{name} skip fire: LOS blocked by {hit.collider.name} (layer {hit.collider.gameObject.layer})");
-            }
+            if (drawDebug) Debug.DrawLine(muzzle, aimPoint, Color.red, 0f, false);
             return;
         }
         // Fire!
@@ -260,7 +357,7 @@ public class RobotController : MonoBehaviour
         }
         else
         {
-            if (drawDebug) Debug.Log($"{name} attempted fire but weapon refused (TryFireAt returned false)");
+            //if (drawDebug) Debug.Log($"{name} attempted fire but weapon refused (TryFireAt returned false)");
         }
     }
     #endregion
@@ -273,14 +370,37 @@ public class RobotController : MonoBehaviour
         float delta = Mathf.DeltaAngle(fromYaw, toYaw);
         return delta;
     }
+
+
+    public void WarpTo(Vector3 pos, Quaternion rot)
+    {
+        if (_agent) _agent.Warp(pos);
+        transform.SetPositionAndRotation(pos, rot);
+        if (lowerBody) lowerBody.rotation = rot;
+        if (upperBody) upperBody.rotation = rot;
+    }
+
+    public void WireParts(Transform lower, Transform upper, Transform fire, WeaponBase wpn)
+    {
+        lowerBody = lower != null ? lower : transform;
+        upperBody = upper != null ? upper : transform;
+        firePoint = fire != null ? fire : upperBody;
+        weapon = wpn;
+
+        // Refresh cached weapon range now that we have a weapon
+        _weaponRange = weapon != null ? weapon.EffectiveRange : stats.attackRange;
+    }
+
+
     #endregion
+
+
 
     #region Lifecycle
     private void HandleDeath()
     {
         if (_agent != null) _agent.isStopped = true;
         OnDestroy();
-        // Optional: effects, UI, cleanup
     }
 
     private void OnDestroy()
@@ -297,7 +417,6 @@ public class RobotController : MonoBehaviour
 
         // Draw firing arc relative to lower body
         Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.25f);
-        DrawArc(lowerBody.position, lowerBody.forward, maxUpperYawFromLower, 2.0f);
 
         // Draw current upper forward and re-center band
         Gizmos.color = Color.cyan;

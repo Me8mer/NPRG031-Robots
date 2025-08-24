@@ -19,6 +19,7 @@ public class RobotHealth : MonoBehaviour
     /// --- Debug Inspector Mirrors ---
     [SerializeField] private float debugHealth;
     [SerializeField] private float debugArmor;
+    private bool destroyOnDeath = true;
     public event Action OnDeath;
 
     #region Unity Lifecycle
@@ -26,8 +27,6 @@ public class RobotHealth : MonoBehaviour
     {
         _controller = GetComponent<RobotController>();
         _stats = _controller.GetStats();
-        CurrentHealth = _stats.maxHealth;
-        CurrentArmor = _stats.maxArmor;
     }
 
     void Update()
@@ -37,16 +36,16 @@ public class RobotHealth : MonoBehaviour
         switch (_controller.CurrentState)
         {
             case RobotState.Strafe:
-                regenPerSec = 0f;
+                regenPerSec = 10f;
                 break;
             case RobotState.Chase:
-                regenPerSec = _stats.armorRegenChase;
+                regenPerSec = 10F; //_stats.armorRegenChase;
                 break;
             case RobotState.Retreat:
-                regenPerSec = _stats.armorRegenChase; 
+                regenPerSec = 20F;//_stats.armorRegenChase; 
                 break;
             default:
-                regenPerSec = _stats.armorRegenIdle;
+                regenPerSec = 20F;//_stats.armorRegenIdle;
                 break;
         }
 
@@ -64,12 +63,14 @@ public class RobotHealth : MonoBehaviour
     /// any remainder is subtracted from health.
     /// </summary>
     /// <param name="amount">Non‑negative damage value.</param>
+    ///
+    public void SetDestroyOnDeath(bool value) => destroyOnDeath = value;
     public void TakeDamage(float amount)
     {
         if (amount <= 0f) return;
 
-        float toArmor = Mathf.Min(CurrentArmor, amount);
-        float toHealth = amount - toArmor;
+        float toArmor = Mathf.Min(CurrentArmor, amount / 2);
+        float toHealth = amount - (toArmor*2);
 
         CurrentArmor -= toArmor;
         CurrentHealth -= toHealth;
@@ -77,6 +78,29 @@ public class RobotHealth : MonoBehaviour
         if (CurrentHealth <= 0f)
             Die();
     }
+
+    public void ApplyStats(RobotStats stats)
+    {
+        _stats = stats ?? new RobotStats();
+        CurrentHealth = _stats.maxHealth;
+        CurrentArmor = _stats.maxArmor;
+        debugHealth = CurrentHealth;
+        debugArmor = CurrentArmor;
+    }
+
+    public void Heal(float amount)
+    {
+        if (amount <= 0f) return;
+        CurrentHealth = Mathf.Min(_stats.maxHealth, CurrentHealth + amount);
+    }
+
+    public void RestoreArmor(float amount)
+    {
+        if (amount <= 0f) return;
+        CurrentArmor = Mathf.Min(_stats.maxArmor, CurrentArmor + amount);
+    }
+
+
     #endregion
 
     [ContextMenu("Apply Debug Values")]
@@ -97,17 +121,29 @@ public class RobotHealth : MonoBehaviour
     private void Die()
     {
         OnDeath?.Invoke();
-        // TODO: play explosion, disable components, destroy GameObject
-        Destroy(gameObject);
+        if (destroyOnDeath)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        // Soft-death for arena rounds
+        gameObject.SetActive(false);
     }
 
-    //DEPRECATED
-    //public void SetArmorRegen(float ratePerSecond)
-    //{
-    //    if (_controller.CurrentState == RobotState.Idle)
-    //        _stats.armorRegenIdle = ratePerSecond;
-    //    else if (_controller.CurrentState == RobotState.Chase)
-    //        _stats.armorRegenChase = ratePerSecond;
-    //}
+    public void Revive()
+    {
+        // Refill from current _stats and re-enable
+        ApplyStats(_stats);
+        gameObject.SetActive(true);
+    }
+    /// <summary>Heals health and armor to their maximum values.</summary>
+    public void RefillToMax()
+    {
+        CurrentHealth = _stats.maxHealth;
+        CurrentArmor = _stats.maxArmor;
+        debugHealth = CurrentHealth;
+        debugArmor = CurrentArmor;
+    }
+
     #endregion
 }

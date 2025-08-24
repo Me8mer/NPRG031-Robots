@@ -1,51 +1,64 @@
 // Weapons/ProjectileWeapon.cs
 using UnityEngine;
 
-public class ProjectileWeapon : WeaponBase
+public class ProjectileWeapon : WeaponBase, IProjectileWeapon
 {
     [Header("Setup")]
     [SerializeField] private Transform muzzle;
     [SerializeField] private Projectile projectilePrefab;
 
     [Header("Tuning")]
-    [SerializeField] private float fireRate = 2f;
-    [SerializeField] private float damage = 10f;
-    [SerializeField] private float projectileSpeed = 30f;
-    [SerializeField] private float maxRange = 25f;
-    [SerializeField] private float spreadDegrees = 1.5f;
     [SerializeField] private LayerMask hitMask;
+    [SerializeField] private bool debug = true;
 
     private float _nextFireTime;
     private GameObject _owner;
+    private RobotStats _stats;
 
     private void Awake()
     {
         _owner = gameObject;
+        var rc = GetComponentInParent<RobotController>();
+        _stats = rc ? rc.GetStats() : null;
     }
 
-    public override float EffectiveRange => maxRange;
+    public override float EffectiveRange => _stats != null ? _stats.attackRange : 25f;
     public override bool CanFire => Time.time >= _nextFireTime;
+
+    private void OnValidate()
+    {
+        if (!muzzle) Debug.LogWarning($"{name}: ProjectileWeapon missing Muzzle transform.");
+        if (!projectilePrefab) Debug.LogWarning($"{name}: ProjectileWeapon missing Projectile prefab.");
+    }
 
     public override bool TryFireAt(Vector3 worldPoint)
     {
-        if (!CanFire || projectilePrefab == null || muzzle == null) return false;
+        if (!CanFire) { if (debug) Debug.Log($"{name}: refuse fire, cooldown"); return false; }
+        if (projectilePrefab == null) { if (debug) Debug.Log($"{name}: refuse fire, projectilePrefab null"); return false; }
+        if (muzzle == null) { if (debug) Debug.Log($"{name}: refuse fire, muzzle null"); return false; }
+        if (_stats == null) { if (debug) Debug.Log($"{name}: refuse fire, stats null"); return false; }
+
 
         Vector3 toTarget = worldPoint - muzzle.position;
         float distance = toTarget.magnitude;
-        if (distance > maxRange) return false;
+        if (distance > _stats.attackRange) return false;
 
-        Vector3 dir = ApplySpread(toTarget.normalized, spreadDegrees);
-        var proj = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
-        proj.Init(_owner, damage, projectileSpeed, maxRange, hitMask);
+        var proj = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(toTarget.normalized));
 
-        _nextFireTime = Time.time + 1f / Mathf.Max(0.01f, fireRate);
+        proj.Init(
+           _owner,
+           _stats.damage,                 // damage from stats
+           projectilePrefab.speed,        // speed from prefab
+           _stats.attackRange,            // range from stats
+           hitMask
+       );
+
+        // attackSpeed is shots per minute
+        float shotsPerMinute = Mathf.Max(1f, _stats.attackSpeed);
+        float cooldown = 60f / shotsPerMinute;
+        _nextFireTime = Time.time + cooldown;
+
         return true;
     }
 
-    private static Vector3 ApplySpread(Vector3 dir, float degrees)
-    {
-        if (degrees <= 0f) return dir;
-        Quaternion q = Quaternion.Euler(Random.Range(-degrees, degrees), Random.Range(-degrees, degrees), 0f);
-        return q * dir;
-    }
 }

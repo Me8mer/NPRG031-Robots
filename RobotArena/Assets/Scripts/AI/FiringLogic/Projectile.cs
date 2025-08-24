@@ -6,13 +6,16 @@ public class Projectile : MonoBehaviour
 {
     [Header("Tuning")]
     public float speed = 30f;
-    public float damage = 10f;
-    public float maxDistance = 50f;
+
     public LayerMask hitMask; // Set in prefab: Robots + Environment
 
     private Vector3 _prevPos;
     private float _traveled;
     private GameObject _owner;
+
+
+    private float damage;
+    private float maxDistance;
 
     public void Init(GameObject owner, float damageOverride, float speedOverride, float maxDistanceOverride, LayerMask maskOverride)
     {

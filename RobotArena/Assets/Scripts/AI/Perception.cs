@@ -13,6 +13,7 @@ public class Perception : MonoBehaviour
     private RobotController controller;
     private RobotStats stats;
 
+    private const float DeterctionRadius = 60f;
     /// <summary>How often (seconds) to refresh cached queries.</summary>
     //private float lastCheckTime;
     public float checkInterval = 0.2f;
@@ -74,7 +75,7 @@ public class Perception : MonoBehaviour
     //private List<Pickup> ScanForPickupsInRange()
     //{
     //    List<Pickup> visiblePickups = new();
-    //    Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, pickupMask);
+    //    Collider[] hits = Physics.OverlapSphere(transform.position, DeterctionRadius, pickupMask);
     //    float halfAngle = stats.sightAngle * 0.5f;
 
     //    foreach (var hit in hits)
@@ -91,7 +92,7 @@ public class Perception : MonoBehaviour
 
     //        // Line-of-sight check
     //        Vector3 eye = transform.position + Vector3.up * 0.5f;
-    //        if (Physics.Raycast(eye, direction, out RaycastHit hitInfo, stats.detectionRadius, obstacleMask))
+    //        if (Physics.Raycast(eye, direction, out RaycastHit hitInfo, DeterctionRadius, obstacleMask))
     //        {
     //            if (hitInfo.transform.root != pickup.transform)
     //                continue;
@@ -113,6 +114,7 @@ public class Perception : MonoBehaviour
         _cachedAllPickups = ScanAllPickups();
         return _cachedAllPickups;
     }
+    public void ApplyStats(RobotStats s) { stats = s; }
 
     private List<Pickup> ScanAllPickups()
     {
@@ -135,22 +137,6 @@ public class Perception : MonoBehaviour
 
     // ---------------- OPPONENTS ----------------
 
-    public bool CanSeeEnemy(RobotController target)
-    {
-        Vector3 dir = (target.transform.position - transform.position).normalized;
-        float halfAngle = stats.sightAngle * 0.5f;
-        if (Vector3.Angle(transform.forward, dir) > halfAngle)
-            return false;
-
-        Vector3 eye = transform.position + Vector3.up * 0.5f;
-        if (Physics.Raycast(eye, dir, out RaycastHit hit, stats.detectionRadius, obstacleMask))
-        {
-            return hit.transform.root == target.transform.root;
-        }
-
-        return true;
-    }
-
     /// <summary>
     /// Returns cached list of visible enemies, updating it at most every checkInterval seconds.
     /// </summary>
@@ -170,7 +156,7 @@ public class Perception : MonoBehaviour
     private List<RobotController> ScanForEnemiesInRange()
     {
         List<RobotController> visibleEnemies = new();
-        Collider[] hits = Physics.OverlapSphere(transform.position, stats.detectionRadius, enemyMask);
+        Collider[] hits = Physics.OverlapSphere(transform.position, DeterctionRadius, enemyMask);
         float halfAngle = stats.sightAngle * 0.5f;
 
         foreach (var hit in hits)
@@ -183,13 +169,9 @@ public class Perception : MonoBehaviour
 
             Vector3 direction = (potentialEnemy.transform.position - transform.position).normalized;
 
-            // FOV check
-            if (Vector3.Angle(transform.forward, direction) > halfAngle)
-                continue;
-
             // Line of sight check
             Vector3 eye = transform.position + Vector3.up * 0.5f;
-            if (Physics.Raycast(eye, direction, out RaycastHit info, stats.detectionRadius, obstacleMask))
+            if (Physics.Raycast(eye, direction, out RaycastHit info, DeterctionRadius, obstacleMask))
             {
                 if (info.transform.root != potentialEnemy.transform.root) continue;
             }
@@ -265,13 +247,13 @@ public class Perception : MonoBehaviour
 
         // Draw detection radius and sight cone
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, stats.detectionRadius);
+        Gizmos.DrawWireSphere(transform.position, DeterctionRadius);
 
         float halfAngle = stats.sightAngle * 0.5f;
         Vector3 leftDir = Quaternion.Euler(0, -halfAngle, 0) * transform.forward;
         Vector3 rightDir = Quaternion.Euler(0, halfAngle, 0) * transform.forward;
 
-        Gizmos.DrawLine(transform.position, transform.position + leftDir * stats.detectionRadius);
-        Gizmos.DrawLine(transform.position, transform.position + rightDir * stats.detectionRadius);
+        Gizmos.DrawLine(transform.position, transform.position + leftDir * DeterctionRadius);
+        Gizmos.DrawLine(transform.position, transform.position + rightDir * DeterctionRadius);
     }
 }

@@ -15,3 +15,8 @@ public abstract class WeaponBase : MonoBehaviour
     /// Optional per-frame updates for beams etc.
     public virtual void Tick() { }
 }
+
+
+public interface IProjectileWeapon
+{
+}

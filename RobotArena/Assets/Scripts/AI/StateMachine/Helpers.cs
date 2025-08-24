@@ -11,6 +11,7 @@ public static class StateTransitionHelper
     // --- Transition tuning ---
     private const float ChaseStrafeGate = 0.35f;   // gate flips between ChaseEnemy <-> StrafeEnemy
     private const float TargetSwitchGate = 0.30f;  // gate rapid target retargets within same state
+    private const float RangeTolerance = 2;
 
     // Per-controller memory to reduce oscillations
     private class Mem
@@ -42,90 +43,138 @@ public static class StateTransitionHelper
 
     public static void HandleTransition(StateMachine fsm, RobotController controller)
     {
-
-        var decision = controller.GetDecision();           // <-- NEW
+        var decision = controller.GetDecision();             // movement + targets
         var currentState = controller.CurrentState;
+        var mem = GetMem(controller);
 
+        // Figure out the desired target transform for this move
+        Transform desiredTarget = null;
         switch (decision.Move)
         {
-            case MovementIntent.Idle:
-                if (currentState == RobotState.Idle) return;
-                fsm.ChangeState(new IdleState(fsm));
-                return;
-
-            case MovementIntent.Retreat:
-                if (currentState == RobotState.Retreat) return;
-                fsm.ChangeState(new RetreatState(fsm));
-                return;
-
             case MovementIntent.StrafeEnemy:
-                // Keep it simple like before: if already in Attack (strafe), do not re-instantiate.
-                if (currentState == RobotState.Strafe) return;
-                if (decision.MoveEnemy != null)
-                {
-                    fsm.ChangeState(new StrafeState(fsm, decision.MoveEnemy.transform));
-                }
-                else
-                {
-                    fsm.ChangeState(new IdleState(fsm));
-                }
-                return;
-
-            case MovementIntent.ChasePickup:
-                // Only avoid re-instantiation if we are already in Chase and still have a pickup target
-                if (currentState == RobotState.Chase && decision.MovePickup != null) return;
-                if (decision.MovePickup != null)
-                {
-                    fsm.ChangeState(new ChaseState(fsm, decision.MovePickup.transform));
-                }
-                else
-                {
-                    fsm.ChangeState(new IdleState(fsm));
-                }
-                return;
-
+                desiredTarget = decision.MoveEnemy ? decision.MoveEnemy.transform : null;
+                break;
             case MovementIntent.ChaseEnemy:
-                if (currentState == RobotState.Chase && decision.MoveEnemy != null) return;
-                if (decision.MoveEnemy != null)
-                {
-                    fsm.ChangeState(new ChaseState(fsm, decision.MoveEnemy.transform));
-                }
-                else
-                {
-                    fsm.ChangeState(new IdleState(fsm));
-                }
-                return;
+                desiredTarget = decision.MoveEnemy ? decision.MoveEnemy.transform : null;
+                break;
+            case MovementIntent.ChasePickup:
+                desiredTarget = decision.MovePickup ? decision.MovePickup.transform : null;
+                break;
+        }
 
-            default:
+        // Gate frequent flips between ChaseEnemy and StrafeEnemy
+        bool chaseStrafeFlip =
+            (mem.lastMove == MovementIntent.ChaseEnemy && decision.Move == MovementIntent.StrafeEnemy) ||
+            (mem.lastMove == MovementIntent.StrafeEnemy && decision.Move == MovementIntent.ChaseEnemy);
+
+        // If the requested move equals current and target did not change, do nothing
+        if (decision.Move == MovementIntent.Idle)
+        {
+            if (currentState == RobotState.Idle) return;
+            if (Time.time < mem.gateUntil && (currentState == RobotState.Chase || currentState == RobotState.Strafe))
+                return;
+            fsm.ChangeState(new IdleState(fsm));
+            mem.lastMove = MovementIntent.Idle;
+            mem.lastTarget = null;
+            return;
+        }
+
+        if (decision.Move == MovementIntent.Retreat)
+        {
+            if (currentState == RobotState.Retreat) return;
+            fsm.ChangeState(new RetreatState(fsm));
+            mem.lastMove = MovementIntent.Retreat;
+            mem.lastTarget = null;
+            return;
+        }
+
+        // Shared gates for move types that carry a target
+        bool sameMoveAsBefore = decision.Move == mem.lastMove;
+        bool sameTargetAsBefore = desiredTarget != null && mem.lastTarget == desiredTarget;
+
+        // If target is unchanged and we are already in the corresponding state, early out
+        if (decision.Move == MovementIntent.StrafeEnemy)
+        {
+            if (currentState == RobotState.Strafe && sameTargetAsBefore) return;
+
+            // Gate rapid flips Chase<->Strafe
+            if (chaseStrafeFlip && Time.time < mem.gateUntil) return;
+
+            // Gate rapid target switches while strafing
+            if (currentState == RobotState.Strafe && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
+
+            if (desiredTarget != null)
+            {
+                fsm.ChangeState(new StrafeState(fsm, desiredTarget));
+                mem.lastMove = MovementIntent.StrafeEnemy;
+                mem.lastTarget = desiredTarget;
+                mem.gateUntil = Time.time + ChaseStrafeGate;
+                mem.targetSwitchGateUntil = Time.time + TargetSwitchGate;
+            }
+            else
+            {
                 fsm.ChangeState(new IdleState(fsm));
-                return;
+                mem.lastMove = MovementIntent.Idle;
+                mem.lastTarget = null;
+            }
+            return;
         }
+
+        if (decision.Move == MovementIntent.ChasePickup)
+        {
+            if (currentState == RobotState.Chase && sameTargetAsBefore) return;
+
+            // Switching from strafing to pickup should be allowed promptly, but still respect target spam
+            if (currentState == RobotState.Chase && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
+
+            if (desiredTarget != null)
+            {
+                fsm.ChangeState(new ChaseState(fsm, desiredTarget));
+                mem.lastMove = MovementIntent.ChasePickup;
+                mem.lastTarget = desiredTarget;
+                mem.targetSwitchGateUntil = Time.time + TargetSwitchGate;
+            }
+            else
+            {
+                fsm.ChangeState(new IdleState(fsm));
+                mem.lastMove = MovementIntent.Idle;
+                mem.lastTarget = null;
+            }
+            return;
+        }
+
+        if (decision.Move == MovementIntent.ChaseEnemy)
+        {
+            if (currentState == RobotState.Chase && sameTargetAsBefore) return;
+
+            // Gate rapid flips Chase<->Strafe
+            if (chaseStrafeFlip && Time.time < mem.gateUntil) return;
+
+            // Gate rapid target switches while chasing
+            if (currentState == RobotState.Chase && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
+
+            if (desiredTarget != null)
+            {
+                fsm.ChangeState(new ChaseState(fsm, desiredTarget));
+                mem.lastMove = MovementIntent.ChaseEnemy;
+                mem.lastTarget = desiredTarget;
+                mem.gateUntil = Time.time + ChaseStrafeGate;
+                mem.targetSwitchGateUntil = Time.time + TargetSwitchGate;
+            }
+            else
+            {
+                fsm.ChangeState(new IdleState(fsm));
+                mem.lastMove = MovementIntent.Idle;
+                mem.lastTarget = null;
+            }
+            return;
+        }
+
+        // Fallback
+        fsm.ChangeState(new IdleState(fsm));
+        mem.lastMove = MovementIntent.Idle;
+        mem.lastTarget = null;
     }
 
-    public static class CombatHelpers
-    {
-        public static float ComputeAttackRing(RobotController self, Transform target, float cushion = 0.25f)
-        {
-            if (self == null || target == null) return 0.1f;
-
-            float desired = Mathf.Max(0.1f, self.GetAttackRangeMeters());
-
-            float myR = 0.5f;
-            var myAgent = self.GetAgent();
-            if (myAgent != null) myR = myAgent.radius;
-
-            float theirR = 0.5f;
-            var targetAgent = target.GetComponentInParent<NavMeshAgent>();
-            if (targetAgent != null) theirR = targetAgent.radius;
-
-            return desired + myR + theirR + Mathf.Max(0f, cushion);
-        }
-
-        public static bool InEffectiveAttackRange(RobotController self, Transform target, float toleranceMeters = 0.5f)
-        {
-            float ring = ComputeAttackRing(self, target);
-            float dist = Vector3.Distance(self.transform.position, target.position);
-            return dist <= ring + Mathf.Max(0f, toleranceMeters);
-        }
-    }
+    
 }
