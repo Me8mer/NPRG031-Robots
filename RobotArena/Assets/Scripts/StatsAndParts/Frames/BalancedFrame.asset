@@ -15,4 +15,4 @@ MonoBehaviour:
   id: Balanced Frame
   baseHealth: 800
   baseArmor: 350
-  baseWeight: 30
+  baseWeight: 35

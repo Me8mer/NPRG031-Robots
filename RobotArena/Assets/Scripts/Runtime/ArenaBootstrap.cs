@@ -2,12 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// Bootstraps the arena at runtime:
+/// - Spawns robots from selected builds
+/// - Initializes game loop and UI panels
+/// - Sets up arena camera
+/// </summary>
 public class ArenaBootstrap : MonoBehaviour
 {
     [Header("Setup")]
     [SerializeField] private GameObject robotRuntimeRigPrefab;
     [SerializeField] private Transform[] spawnPoints;
-
 
     [Header("Panels")]
     [SerializeField] private ArenaPlayerPanels playerPanels;
@@ -27,17 +32,19 @@ public class ArenaBootstrap : MonoBehaviour
             return;
         }
 
-
         int count = Mathf.Min(selected.Count, spawnPoints.Length);
         for (int i = 0; i < count; i++)
         {
             SpawnOne(selected[i], spawnPoints[i].position, spawnPoints[i].rotation, i);
         }
+
         if (gameLoop != null)
         {
             gameLoop.Initialize(_spawned, spawnPoints, scoreboardPanel, skipRobot: null);
         }
+
         ConnectToPanels();
+
         var cam = FindFirstObjectByType<ArenaCameraController>();
         if (cam != null) cam.Initialize(_spawned, null);
 
@@ -57,10 +64,9 @@ public class ArenaBootstrap : MonoBehaviour
         go.name = string.IsNullOrWhiteSpace(build.robotName) ? $"Robot_{index + 1}" : build.robotName;
 
         var assembler = go.GetComponent<RobotAssembler>();
-
         if (!assembler.AssembleFromBuild(build, out var lowerBody, out var upperBody, out var weapon, out var firePoint))
         {
-            Debug.LogError($"ArenaBootstrap: Failed to assemble robot {go.name} — missing defs or bad IDs?");
+            Debug.LogError($"ArenaBootstrap: Failed to assemble robot {go.name} — bad IDs?");
             Destroy(go);
             return;
         }
@@ -75,22 +81,23 @@ public class ArenaBootstrap : MonoBehaviour
 
         // Inject stats before wiring
         var catalog = FindFirstObjectByType<BodyPartsCatalog>() ?? FindAnyObjectByType<BodyPartsCatalog>();
-        if (!catalog)
+        if (catalog)
         {
-            Debug.LogWarning("ArenaBootstrap: BodyPartsCatalog not found in scene. Using default stats.");
+            // Mutate existing stats so shared references (Health/Perception) see updated values
+            RobotStatsBuilder.FillFromIds(ctrl.GetStats(), build, catalog);
         }
         else
         {
-            // IMPORTANT: mutate the existing stats object so Perception/Health keep seeing the updated values
-            RobotStatsBuilder.FillFromIds(ctrl.GetStats(), build, catalog);
+            Debug.LogWarning("ArenaBootstrap: BodyPartsCatalog not found. Using default stats.");
         }
 
         ctrl.ApplyMovementFromStats();
         ctrl.GetComponent<RobotHealth>()?.ApplyStats(ctrl.stats);
         ctrl.GetPerception()?.ApplyStats(ctrl.stats);
+        ctrl.ApplyMovementFromStats();
         ctrl.WireParts(lowerBody, upperBody, firePoint, weapon);
 
-        var agent = go.GetComponent<UnityEngine.AI.NavMeshAgent>();
+        var agent = go.GetComponent<NavMeshAgent>();
         if (agent)
         {
             if (NavMesh.SamplePosition(pos, out var hit, 2f, NavMesh.AllAreas))
@@ -113,5 +120,4 @@ public class ArenaBootstrap : MonoBehaviour
             playerPanels.ShowForRobots(_spawned, names);
         }
     }
-
 }

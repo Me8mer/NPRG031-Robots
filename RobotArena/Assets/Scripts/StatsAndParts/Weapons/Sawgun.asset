@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
   id: Lasergun
   attackSpeed: 30
-  attackRange: 1
-  attackDamage: 400
+  attackRange: 10
+  attackDamage: 250
   baseWeight: 40

@@ -3,15 +3,22 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// Spawns pickup prefabs randomly inside a defined <see cref="BoxCollider"/> area,
+/// snapping them to the NavMesh and avoiding edges/walls.
+/// Maintains a cap on active pickups and spawns them at randomized intervals.
+/// </summary>
 public class PickupSpawner : MonoBehaviour
 {
     [Header("Prefab and Area")]
     [SerializeField] private GameObject pickupPrefab;
-    [SerializeField] private BoxCollider area;          // big box covering your arena floor
+    [Tooltip("Box collider covering your arena floor.")]
+    [SerializeField] private BoxCollider area;
 
-    private float navMeshSampleRadius = 3f;   // how far to search for NavMesh from the random point
-    private int navMeshSampleTries = 12;      // how many random tries per spawn
-    private float minEdgeClearance = 1f;  
+    [Header("Sampling")]
+    [SerializeField] private float navMeshSampleRadius = 3f;
+    [SerializeField] private int navMeshSampleTries = 12;
+    [SerializeField] private float minEdgeClearance = 1f;
 
     [Header("Counts")]
     [SerializeField] private int maxActive = 3;
@@ -21,11 +28,15 @@ public class PickupSpawner : MonoBehaviour
     [SerializeField] private float minSpawnInterval = 5f;
     [SerializeField] private float spawnIntervalJitter = 10f;
 
-    private readonly HashSet<GameObject> _active = new HashSet<GameObject>();
+    private readonly HashSet<GameObject> _active = new();
     private Coroutine _loop;
 
-    void OnEnable() => _loop = StartCoroutine(Loop());
-    void OnDisable() { if (_loop != null) StopCoroutine(_loop); _active.Clear(); }
+    private void OnEnable() => _loop = StartCoroutine(Loop());
+    private void OnDisable()
+    {
+        if (_loop != null) StopCoroutine(_loop);
+        _active.Clear();
+    }
 
     private IEnumerator Loop()
     {
@@ -34,13 +45,14 @@ public class PickupSpawner : MonoBehaviour
 
         while (enabled)
         {
-            // clean destroyed or deactivated
+            // Clean destroyed or inactive
             _active.RemoveWhere(go => go == null || !go.activeInHierarchy);
 
             if (_active.Count < maxActive && TryGetSpawnPosition(out var pos))
             {
                 var go = Instantiate(pickupPrefab, pos, Quaternion.identity);
                 _active.Add(go);
+
                 float wait = minSpawnInterval + Random.Range(0f, Mathf.Max(0f, spawnIntervalJitter));
                 yield return new WaitForSeconds(wait);
             }
@@ -51,17 +63,21 @@ public class PickupSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Attempts to find a valid spawn position inside the arena box,
+    /// projected to NavMesh and with optional edge clearance.
+    /// </summary>
     private bool TryGetSpawnPosition(out Vector3 pos)
     {
         for (int i = 0; i < navMeshSampleTries; i++)
         {
             Vector3 candidate = RandomPointInBox(area);
 
-            // project to NavMesh so it is never outside or through walls, provided walls are baked
+            // Snap to NavMesh
             if (!NavMesh.SamplePosition(candidate, out var hit, navMeshSampleRadius, NavMesh.AllAreas))
                 continue;
 
-            // optional: keep a small distance from NavMesh edges to avoid hugging walls
+            // Require distance from edges
             if (minEdgeClearance > 0f && NavMesh.FindClosestEdge(hit.position, out var edge, NavMesh.AllAreas))
             {
                 if (edge.distance < minEdgeClearance) continue;

@@ -1,5 +1,12 @@
 using UnityEngine;
 
+/// <summary>
+/// Central catalog of all available robot parts.
+/// 
+/// Provides lookups by index and ID, and returns both definitions (stats)
+/// and prefabs (visuals). This is the backbone for assembling robots
+/// and saving/loading builds.
+/// </summary>
 public class BodyPartsCatalog : MonoBehaviour
 {
     [Header("Catalog")]
@@ -8,7 +15,7 @@ public class BodyPartsCatalog : MonoBehaviour
     [SerializeField] private WeaponOption[] weapons;
     [SerializeField] private CoreOption[] cores;
 
-    // ----- Safe access -----
+    // ---------------- Safe access ----------------
     private static FrameOption? SafeGet(FrameOption[] arr, int index)
     {
         if (arr == null || arr.Length == 0) return null;
@@ -34,21 +41,22 @@ public class BodyPartsCatalog : MonoBehaviour
         return arr[index];
     }
 
-    // ----- Id getters used by Save/Load -----
+    // ---------------- ID getters (for Save/Load) ----------------
+    /// <summary>Returns the ID of the frame at <paramref name="index"/>.</summary>
     public string GetFrameId(int index) => SafeGet(frames, index)?.id ?? "";
     public string GetLowerId(int index) => SafeGet(lowers, index)?.id ?? "";
     public string GetWeaponId(int index) => SafeGet(weapons, index)?.id ?? "";
     public string GetCoreId(int index) => SafeGet(cores, index)?.id ?? "";
 
-    // ----- Index finders used by Save/Load -----
-    public int FindFrameIndexById(string id) => FindIndex(frames, id);
-    public int FindLowerIndexById(string id) => FindIndex(lowers, id);
-    public int FindWeaponIndexById(string id) => FindIndex(weapons, id);
-    public int FindCoreIndexById(string id) => FindIndex(cores, id);
-
+    // ---------------- Index finders (for Save/Load) ----------------
+    /// <summary>
+    /// Finds the index of a part by ID. Returns -1 if not found.
+    /// Generic because all Option structs share `id`.
+    /// </summary>
     private static int FindIndex<T>(T[] arr, string id) where T : struct
     {
         if (string.IsNullOrWhiteSpace(id) || arr == null) return -1;
+
         for (int i = 0; i < arr.Length; i++)
         {
             string cur = "";
@@ -56,21 +64,32 @@ public class BodyPartsCatalog : MonoBehaviour
             if (typeof(T) == typeof(LowerOption)) cur = ((LowerOption)(object)arr[i]).id;
             if (typeof(T) == typeof(WeaponOption)) cur = ((WeaponOption)(object)arr[i]).id;
             if (typeof(T) == typeof(CoreOption)) cur = ((CoreOption)(object)arr[i]).id;
-            if (string.Equals(cur, id, System.StringComparison.OrdinalIgnoreCase)) return i;
+
+            if (string.Equals(cur, id, System.StringComparison.OrdinalIgnoreCase))
+                return i;
         }
         return -1;
     }
 
+    public int FindFrameIndexById(string id) => FindIndex(frames, id);
+    public int FindLowerIndexById(string id) => FindIndex(lowers, id);
+    public int FindWeaponIndexById(string id) => FindIndex(weapons, id);
+    public int FindCoreIndexById(string id) => FindIndex(cores, id);
+
+    // ---------------- Counts ----------------
     public int FramesCount => frames != null ? frames.Length : 0;
     public int LowersCount => lowers != null ? lowers.Length : 0;
     public int WeaponsCount => weapons != null ? weapons.Length : 0;
     public int CoresCount => cores != null ? cores.Length : 0;
 
-    // ----- Definition getters for the builder and controller -----
+    // ---------------- Definition getters ----------------
+    /// <summary>Gets the <see cref="FrameDefinition"/> at given index.</summary>
     public FrameDefinition GetFrameDef(int index) => SafeGet(frames, index)?.definition;
     public LowerDefinition GetLowerDef(int index) => SafeGet(lowers, index)?.definition;
     public WeaponDefinition GetWeaponDef(int index) => SafeGet(weapons, index)?.definition;
     public CoreDefinition GetCoreDef(int index) => SafeGet(cores, index)?.definition;
+
+    /// <summary>Finds a Frame definition by ID (or null if not found).</summary>
     public FrameDefinition GetFrameDefById(string id)
     {
         int i = FindFrameIndexById(id);
@@ -92,12 +111,11 @@ public class BodyPartsCatalog : MonoBehaviour
         return (i >= 0 && cores != null && i < cores.Length) ? cores[i].definition : null;
     }
 
-    // ----- Prefab getters for preview spawning -----
+    // ---------------- Prefab getters ----------------
+    /// <summary>Gets the prefab of a frame by index (for preview spawning).</summary>
     public GameObject GetFramePrefab(int index) => SafeGet(frames, index)?.prefab;
     public GameObject GetLowerPrefab(int index) => SafeGet(lowers, index)?.prefab;
     public GameObject GetWeaponPrefab(int index) => SafeGet(weapons, index)?.prefab;
     public GameObject GetCorePrefab(int index) => SafeGet(cores, index)?.prefab;
 
-    // Optional helper for StatsPanel until you switch it to stats builder
-    public FrameOption GetFrameOption(int index) => SafeGet(frames, index) ?? default;
 }

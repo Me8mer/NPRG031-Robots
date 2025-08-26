@@ -1,5 +1,5 @@
 /// <summary>
-/// Contract that every AI state must fulfil so it can be managed by
+/// Contract that every AI state must implement so it can be managed by
 /// <see cref="StateMachine"/>.
 /// </summary>
 public interface IState
@@ -13,5 +13,3 @@ public interface IState
     /// <summary>Called once just before the state is replaced by another.</summary>
     void Exit();
 }
-
-

@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// Populates dropdowns with available parts from the <see cref="BodyPartsCatalog"/>.
+/// Provides accessors for selected indices and helpers for setting them programmatically.
+/// </summary>
 public class DropdownManager : MonoBehaviour
 {
     [Header("Dropdowns")]
@@ -13,6 +17,10 @@ public class DropdownManager : MonoBehaviour
     [Header("Data")]
     [SerializeField] private BodyPartsCatalog catalog;
 
+    /// <summary>
+    /// Initializes dropdowns with part options.
+    /// Should be called when entering the Builder UI.
+    /// </summary>
     public void Init()
     {
         if (!catalog)
@@ -33,11 +41,15 @@ public class DropdownManager : MonoBehaviour
         SafeSet(coreDropdown, 0);
     }
 
+    // --- Index accessors ---
     public int BodyFrameIndex => bodyFrameDropdown ? bodyFrameDropdown.value : 0;
     public int LowerIndex => lowerDropdown ? lowerDropdown.value : 0;
     public int WeaponIndex => weaponDropdown ? weaponDropdown.value : 0;
     public int CoreIndex => coreDropdown ? coreDropdown.value : 0;
 
+    /// <summary>
+    /// Sets indices on all dropdowns at once (used when loading a saved build).
+    /// </summary>
     public void SetPartIndices(int frame, int lower, int weapon, int core)
     {
         SetIndex(bodyFrameDropdown, frame);
@@ -46,10 +58,17 @@ public class DropdownManager : MonoBehaviour
         SetIndex(coreDropdown, core);
     }
 
-    // ---------- internals ----------
+    // ---------- Internals ----------
+
+    /// <summary>
+    /// Builds a safe display label for a dropdown option.
+    /// </summary>
     private static string Label(string id, string fallback, int idx)
         => string.IsNullOrWhiteSpace(id) ? $"{fallback} {idx + 1}" : id;
 
+    /// <summary>
+    /// Populates a dropdown with count options, labeled by <paramref name="makeLabel"/>.
+    /// </summary>
     private static void Fill(TMP_Dropdown dd, int count, System.Func<int, string> makeLabel)
     {
         if (!dd) return;
@@ -60,6 +79,9 @@ public class DropdownManager : MonoBehaviour
         dd.RefreshShownValue();
     }
 
+    /// <summary>
+    /// Sets dropdown to a value safely clamped to valid range.
+    /// </summary>
     private static void SafeSet(TMP_Dropdown dd, int value)
     {
         if (!dd) return;
@@ -68,6 +90,9 @@ public class DropdownManager : MonoBehaviour
         dd.RefreshShownValue();
     }
 
+    /// <summary>
+    /// Sets dropdown index without invoking listeners.
+    /// </summary>
     private static void SetIndex(TMP_Dropdown dd, int idx)
     {
         if (!dd) return;

@@ -5,6 +5,11 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+/// <summary>
+/// UI screen for assigning saved robot builds to player slots (2–4 players).
+/// Enforces unique selections across slots and validates player count
+/// before allowing continuation into the arena.
+/// </summary>
 public class PlayerLoaderUI : MonoBehaviour
 {
     [Header("Slots")]
@@ -13,10 +18,10 @@ public class PlayerLoaderUI : MonoBehaviour
     [SerializeField] private TMP_Dropdown slot3;
     [SerializeField] private TMP_Dropdown slot4;
 
-    [Header("Nav")]
+    [Header("Navigation")]
     [SerializeField] private PanelManager panels;
 
-    [Header("UI")]
+    [Header("UI Elements")]
     [SerializeField] private Button continueButton;
     [SerializeField] private TMP_Text statusText;
 
@@ -26,6 +31,7 @@ public class PlayerLoaderUI : MonoBehaviour
 
     private const string EmptyKey = "";
 
+    /// <summary>One saved robot entry from disk.</summary>
     private struct RobotEntry
     {
         public string path;
@@ -33,14 +39,15 @@ public class PlayerLoaderUI : MonoBehaviour
         public RobotBuildData data;
     }
 
+    /// <summary>Wrapper for each slot’s dropdown and its available option paths.</summary>
     private class Slot
     {
         public TMP_Dropdown dropdown;
-        public List<string> optionPaths = new List<string>(); // parallel to dropdown.options
+        public List<string> optionPaths = new(); // parallel to dropdown.options
     }
 
-    private readonly List<RobotEntry> _entries = new List<RobotEntry>();
-    private readonly List<Slot> _slots = new List<Slot>();
+    private readonly List<RobotEntry> _entries = new();
+    private readonly List<Slot> _slots = new();
 
     private void Awake()
     {
@@ -60,17 +67,27 @@ public class PlayerLoaderUI : MonoBehaviour
 
     private void OnEnable()
     {
-        Debug.Log("PlayerLoaderDropdownUI.OnEnable");
         LoadEntries();
         RepopulateAll();
         UpdateContinueState();
     }
 
+    /// <summary>
+    /// Loads saved builds from disk into memory.
+    /// </summary>
     private void LoadEntries()
     {
         _entries.Clear();
 
         var files = BuildSerializer.ListBuildFiles();
+        string defaultsDir = Path.Combine(Application.streamingAssetsPath, "Robots");
+        if (Directory.Exists(defaultsDir))
+        {
+            foreach (var f in Directory.GetFiles(defaultsDir, "*.json"))
+            {
+                files.Add(f);
+            }
+        }
         foreach (var fullPath in files)
         {
             var data = BuildSerializer.Load(fullPath);
@@ -92,16 +109,19 @@ public class PlayerLoaderUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Repopulates all dropdowns with available robots,
+    /// ensuring uniqueness across slots.
+    /// </summary>
     private void RepopulateAll()
     {
-        // Take a snapshot of current selections
+        // Snapshot current selections
         var currentSelections = new List<string>(_slots.Count);
         foreach (var s in _slots) currentSelections.Add(GetSelectedPath(s));
 
-        // Build a set of selected items to exclude
+        // Build set of selected items to exclude
         var selectedSet = new HashSet<string>(currentSelections);
 
-        // Refill each dropdown with Empty + all not selected elsewhere + keep own selection
         for (int i = 0; i < _slots.Count; i++)
         {
             var s = _slots[i];
@@ -112,11 +132,11 @@ public class PlayerLoaderUI : MonoBehaviour
             s.optionPaths.Clear();
             var options = new List<TMP_Dropdown.OptionData>();
 
-            // Empty
+            // Empty entry
             options.Add(new TMP_Dropdown.OptionData("Empty"));
             s.optionPaths.Add(EmptyKey);
 
-            // Available robots
+            // Available robots not already picked elsewhere
             foreach (var e in _entries)
             {
                 bool selectedElsewhere = selectedSet.Contains(e.path) && e.path != keep;
@@ -134,11 +154,14 @@ public class PlayerLoaderUI : MonoBehaviour
             s.dropdown.RefreshShownValue();
         }
 
-        // Enforce uniqueness in case two slots pointed to the same item
         EnsureUniqueSelections();
         UpdateContinueState();
     }
 
+    /// <summary>
+    /// Ensures no two slots are pointing to the same saved robot.
+    /// Clears duplicates to "Empty".
+    /// </summary>
     private void EnsureUniqueSelections()
     {
         var seen = new HashSet<string>();
@@ -148,18 +171,11 @@ public class PlayerLoaderUI : MonoBehaviour
             if (string.IsNullOrEmpty(p)) continue;
 
             if (!seen.Add(p))
-            {
-                // Duplicate found, clear this slot to Empty
-                SetSelectedPath(s, EmptyKey);
-            }
+                SetSelectedPath(s, EmptyKey); // clear duplicate
         }
     }
 
-    private void OnDropdownChanged()
-    {
-        // Rebuild option lists to keep the “not yet selected” rule
-        RepopulateAll();
-    }
+    private void OnDropdownChanged() => RepopulateAll();
 
     private string GetSelectedPath(Slot s)
     {
@@ -181,12 +197,13 @@ public class PlayerLoaderUI : MonoBehaviour
     {
         int count = 0;
         foreach (var s in _slots)
-        {
             if (!string.IsNullOrEmpty(GetSelectedPath(s))) count++;
-        }
         return count;
     }
 
+    /// <summary>
+    /// Updates continue button and status message based on selected player count.
+    /// </summary>
     private void UpdateContinueState()
     {
         int count = CountSelected();
@@ -210,19 +227,20 @@ public class PlayerLoaderUI : MonoBehaviour
         if (statusText) statusText.text = msg;
     }
 
-    // Buttons
-    public void OnClickBackToMenu()
-    {
-        if (panels) panels.ShowMainMenu();
-    }
+    // --- Button hooks ---
+    public void OnClickBackToMenu() => panels?.ShowMainMenu();
+
     public void RefreshList()
     {
         LoadEntries();
         RepopulateAll();
         UpdateContinueState();
-        Debug.Log($"PlayerLoaderDropdownUI: refresh → entries={_entries.Count}");
     }
 
+    /// <summary>
+    /// Stores chosen robots into <see cref="SelectedRobotsStore"/>
+    /// and loads the arena scene.
+    /// </summary>
     public void OnClickContinue()
     {
         var chosen = new List<RobotBuildData>();
@@ -236,9 +254,8 @@ public class PlayerLoaderUI : MonoBehaviour
         }
 
         SelectedRobotsStore.Set(chosen);
-        Debug.Log($"PlayerLoaderDropdownUI: Continuing with {chosen.Count} robots.");
+        Debug.Log($"PlayerLoaderUI: Continuing with {chosen.Count} robots.");
 
-        // Move to the next screen when ready, for now you can stay here or go back
         SceneManager.LoadScene("ArenaPrototypeScene");
     }
 }

@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Legs
   m_EditorClassIdentifier: 
   id: Legs
-  baseSpeed: 100
+  baseSpeed: 150
   baseWeight: 10
   turningSpeed: 75

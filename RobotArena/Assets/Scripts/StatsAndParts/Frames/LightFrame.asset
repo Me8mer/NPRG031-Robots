@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: LightFrame
   m_EditorClassIdentifier: 
   id: Light Frame
-  baseHealth: 750
-  baseArmor: 250
-  baseWeight: 45
+  baseHealth: 800
+  baseArmor: 150
+  baseWeight: 15

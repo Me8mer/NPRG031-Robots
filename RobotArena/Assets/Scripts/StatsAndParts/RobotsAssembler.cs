@@ -1,5 +1,14 @@
 using UnityEngine;
 
+/// <summary>
+/// Handles assembly of robots from catalog parts (frame, lower body, weapon, core).
+/// 
+/// Supports two workflows:
+/// - <see cref="Apply"/>: used by the Builder UI for preview assembly from indices
+/// - <see cref="AssembleFromBuild"/>: used by ArenaBootstrap to spawn robots from saved build data
+/// 
+/// Also manages tinting for each part.
+/// </summary>
 [DisallowMultipleComponent]
 public class RobotAssembler : MonoBehaviour
 {
@@ -7,7 +16,9 @@ public class RobotAssembler : MonoBehaviour
     [SerializeField] private BodyPartsCatalog catalog;
 
     [Header("Sockets on the rig")]
+    [Tooltip("Where the frame prefab is spawned.")]
     [SerializeField] private Transform frameSocket;
+    [Tooltip("Where the lower body prefab is spawned.")]
     [SerializeField] private Transform lowerSocket;
 
     [Header("Tint defaults")]
@@ -16,24 +27,28 @@ public class RobotAssembler : MonoBehaviour
     [SerializeField] private Color defaultWeaponColor = Color.white;
     [SerializeField] private Color defaultCoreColor = Color.white;
 
+    // Selection indices (used by Builder and saving)
     public int SelectedFrameIndex { get; private set; }
     public int SelectedLowerIndex { get; private set; }
     public int SelectedWeaponIndex { get; private set; }
     public int SelectedCoreIndex { get; private set; }
 
-    // spawned instances
+    // Spawned part instances
     private GameObject _frameInst, _lowerInst, _weaponInst, _coreInst;
 
-    // mounts and visuals
+    // Mount transforms (extracted from prefabs)
     private Transform _weaponMount, _coreMount, _lowerMount;
+
+    // Visual transforms (used for tint application)
     private Transform _frameVisual, _lowerVisual, _weaponVisual, _coreVisual;
 
-    // dynamic tints set by UI or by load
+    // Tint values applied by UI or loaded builds
     private Color _frameTint = Color.clear;
     private Color _lowerTint = Color.clear;
     private Color _weaponTint = Color.clear;
     private Color _coreTint = Color.clear;
 
+    /// <summary>Returns true if catalog has all required parts loaded.</summary>
     public bool HasValidData =>
         catalog != null &&
         catalog.FramesCount > 0 &&
@@ -41,26 +56,36 @@ public class RobotAssembler : MonoBehaviour
         catalog.WeaponsCount > 0 &&
         catalog.CoresCount > 0;
 
-    // Add this near the top of the class
     private void Awake()
     {
-        // Auto-find catalog in scene if not assigned on the prefab
+        // Auto-find catalog in scene if not assigned
         if (!catalog)
             catalog = FindFirstObjectByType<BodyPartsCatalog>();
     }
 
+    // -------------------------------------------------------------------------
+    // UI / Builder Entry Point
+    // -------------------------------------------------------------------------
 
-    // -------- Builder entry: assemble by indices (used by BuilderUI/preview) --------
+    /// <summary>
+    /// Assembles a robot from indices into the catalog.
+    /// Used by the Builder UI to update preview robots.
+    /// </summary>
     public void Apply(int frameIndex, int lowerIndex, int weaponIndex, int coreIndex)
     {
-        if (!catalog) { Debug.LogError("RobotAssembler: catalog is null."); return; }
+        if (!catalog)
+        {
+            Debug.LogError("RobotAssembler: catalog is null.");
+            return;
+        }
 
+        // Clamp indices to safe ranges
         SelectedFrameIndex = Mathf.Clamp(frameIndex, 0, catalog.FramesCount - 1);
         SelectedLowerIndex = Mathf.Clamp(lowerIndex, 0, catalog.LowersCount - 1);
         SelectedWeaponIndex = Mathf.Clamp(weaponIndex, 0, catalog.WeaponsCount - 1);
         SelectedCoreIndex = Mathf.Clamp(coreIndex, 0, catalog.CoresCount - 1);
 
-        // 1) Frame first, provides mounts and visuals
+        // 1) Frame first — provides sockets and visual anchor
         _frameInst = Swap(_frameInst, frameSocket, catalog.GetFramePrefab(SelectedFrameIndex));
         _weaponMount = FindInChildren(_frameInst?.transform, "WeaponMount");
         _coreMount = FindInChildren(_frameInst?.transform, "CoreMount");
@@ -68,12 +93,15 @@ public class RobotAssembler : MonoBehaviour
         _frameVisual = FindInChildren(_frameInst?.transform, "FrameVisual");
         ApplyFrameTint();
 
-        // 2) Lower on its own socket
-        _lowerInst = Swap(_lowerInst, lowerSocket, catalog.GetLowerPrefab(SelectedLowerIndex));
+        // 2) Lower under the frame’s LowerMount (fallback to legacy lowerSocket)
+        if (_lowerMount != null)
+        {
+            _lowerInst = Swap(_lowerInst, _lowerMount, catalog.GetLowerPrefab(SelectedLowerIndex));
+        }
         _lowerVisual = FindInChildren(_lowerInst?.transform, "LowerVisual");
         ApplyLowerTint();
 
-        // 3) Weapon into frame mount
+        // 3) Weapon on frame’s weapon mount
         if (_weaponMount != null)
         {
             _weaponInst = Swap(_weaponInst, _weaponMount, catalog.GetWeaponPrefab(SelectedWeaponIndex));
@@ -85,7 +113,7 @@ public class RobotAssembler : MonoBehaviour
             _weaponInst = DestroyIfExists(_weaponInst);
         }
 
-        // 4) Core into frame mount
+        // 4) Core on frame’s core mount
         if (_coreMount != null)
         {
             _coreInst = Swap(_coreInst, _coreMount, catalog.GetCorePrefab(SelectedCoreIndex));
@@ -98,17 +126,26 @@ public class RobotAssembler : MonoBehaviour
         }
     }
 
-    // -------- Arena entry: assemble from saved build and return wiring points --------
-    public bool AssembleFromBuild(
-        RobotBuildData data,
-        out Transform lowerBody,
-        out Transform upperBody,
-        out WeaponBase weapon,
-        out Transform firePoint)
-    {
+    // -------------------------------------------------------------------------
+    // Arena Entry Point
+    // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Assembles a robot from saved build data, wiring up required references
+    /// for the <see cref="RobotController"/>.
+    /// </summary>
+    /// <param name="data">Build data to assemble from.</param>
+    /// <param name="lowerBody">Output: lower body transform for controller.</param>
+    /// <param name="upperBody">Output: upper body transform for controller.</param>
+    /// <param name="weapon">Output: weapon component reference.</param>
+    /// <param name="firePoint">Output: weapon muzzle transform.</param>
+    public bool AssembleFromBuild(RobotBuildData data,
+                                  out Transform lowerBody,
+                                  out Transform upperBody,
+                                  out WeaponBase weapon,
+                                  out Transform firePoint)
+    {
         lowerBody = null; upperBody = null; weapon = null; firePoint = null;
-        //if (!catalog || data == null) return false;
 
         if (data == null)
         {
@@ -117,7 +154,7 @@ public class RobotAssembler : MonoBehaviour
         }
         if (!catalog)
         {
-            Debug.LogError($"RobotAssembler on {name}: BodyPartsCatalog is NULL (assign it on the prefab or keep one in the scene).");
+            Debug.LogError($"RobotAssembler on {name}: catalog is NULL.");
             return false;
         }
         if (!frameSocket || !lowerSocket)
@@ -126,27 +163,13 @@ public class RobotAssembler : MonoBehaviour
             return false;
         }
 
+        // Resolve IDs → indices (fallback to saved indices if ID lookup fails)
+        int iFrame = ResolveIndex(catalog.FindFrameIndexById(data.frameId), data.frameIndex, catalog.FramesCount);
+        int iLower = ResolveIndex(catalog.FindLowerIndexById(data.lowerId), data.lowerIndex, catalog.LowersCount);
+        int iWeapon = ResolveIndex(catalog.FindWeaponIndexById(data.weaponId), data.weaponIndex, catalog.WeaponsCount);
+        int iCore = ResolveIndex(catalog.FindCoreIndexById(data.coreId), data.coreIndex, catalog.CoresCount);
 
-
-        // Resolve indices by id with safe fallback to saved index
-        int iFrameById = catalog.FindFrameIndexById(data.frameId);
-        int iLowerById = catalog.FindLowerIndexById(data.lowerId);
-        int iWeaponById = catalog.FindWeaponIndexById(data.weaponId);
-        int iCoreById = catalog.FindCoreIndexById(data.coreId);
-
-        if (iFrameById < 0) Debug.LogWarning($"RobotAssembler: frameId '{data.frameId}' not found. Using saved index {data.frameIndex}.");
-        if (iLowerById < 0) Debug.LogWarning($"RobotAssembler: lowerId '{data.lowerId}' not found. Using saved index {data.lowerIndex}.");
-        if (iWeaponById < 0) Debug.LogWarning($"RobotAssembler: weaponId '{data.weaponId}' not found. Using saved index {data.weaponIndex}.");
-        if (iCoreById < 0) Debug.LogWarning($"RobotAssembler: coreId '{data.coreId}' not found. Using saved index {data.coreIndex}.");
-
-        int iFrame = ResolveIndex(iFrameById, data.frameIndex, catalog.FramesCount);
-        int iLower = ResolveIndex(iLowerById, data.lowerIndex, catalog.LowersCount);
-        int iWeapon = ResolveIndex(iWeaponById, data.weaponIndex, catalog.WeaponsCount);
-        int iCore = ResolveIndex(iCoreById, data.coreIndex, catalog.CoresCount);
-
-        /////
-        ///DEBUG
-        /// // 2) Validate prefabs exist for chosen indices
+        // Validate prefabs exist
         var pfFrame = catalog.GetFramePrefab(iFrame);
         var pfLower = catalog.GetLowerPrefab(iLower);
         var pfWeapon = catalog.GetWeaponPrefab(iWeapon);
@@ -154,19 +177,21 @@ public class RobotAssembler : MonoBehaviour
 
         if (!pfFrame) { Debug.LogError($"RobotAssembler: Frame prefab missing at index {iFrame} (id '{data.frameId}')."); return false; }
         if (!pfLower) { Debug.LogError($"RobotAssembler: Lower prefab missing at index {iLower} (id '{data.lowerId}')."); return false; }
-        // Weapon/Core are optional if your frame supports it, so warn only
         if (!pfWeapon) Debug.LogWarning($"RobotAssembler: Weapon prefab missing at index {iWeapon} (id '{data.weaponId}').");
         if (!pfCore) Debug.LogWarning($"RobotAssembler: Core prefab missing at index {iCore} (id '{data.coreId}').");
 
-
-
-
+        // Actually assemble robot
         Apply(iFrame, iLower, iWeapon, iCore);
 
-        // UpperBody is part of the frame hierarchy
-        upperBody = FindInChildren(_frameInst?.transform, "UpperBody") ?? _frameInst?.transform ?? transform;
-        // LowerBody comes from the lower prefab
-        lowerBody = FindInChildren(_lowerInst?.transform, "LowerBody") ?? transform;
+        // Wire references for controller
+        // Wire references for controller
+        upperBody = FindInChildren(_frameInst?.transform, "UpperBody")
+                    ?? _frameInst?.transform
+                    ?? transform;
+        lowerBody = FindInChildren(_frameInst?.transform, "LowerBody")
+                    ?? FindInChildren(_lowerInst?.transform, "LowerBody")
+                    ?? _lowerInst?.transform
+                    ?? transform;
 
         weapon = _weaponInst ? _weaponInst.GetComponentInChildren<WeaponBase>() : null;
         firePoint = _weaponInst ? FindInChildren(_weaponInst.transform, "Muzzle") : null;
@@ -181,23 +206,14 @@ public class RobotAssembler : MonoBehaviour
         return true;
     }
 
-    // -------- Public helpers used by Save/Load and UI (keep existing API names) --------
-    public string GetFrameId(int index) => catalog ? catalog.GetFrameId(index) : "";
-    public string GetLowerId(int index) => catalog ? catalog.GetLowerId(index) : "";
-    public string GetWeaponId(int index) => catalog ? catalog.GetWeaponId(index) : "";
-    public string GetCoreId(int index) => catalog ? catalog.GetCoreId(index) : "";
-
-    public int FindFrameIndexById(string id) => catalog ? catalog.FindFrameIndexById(id) : 0;
-    public int FindLowerIndexById(string id) => catalog ? catalog.FindLowerIndexById(id) : 0;
-    public int FindWeaponIndexById(string id) => catalog ? catalog.FindWeaponIndexById(id) : 0;
-    public int FindCoreIndexById(string id) => catalog ? catalog.FindCoreIndexById(id) : 0;
-
+    // -------------------------------------------------------------------------
+    // Tint helpers
+    // -------------------------------------------------------------------------
     public void SetFrameTint(Color c) { _frameTint = c; ApplyFrameTint(); }
     public void SetLowerTint(Color c) { _lowerTint = c; ApplyLowerTint(); }
     public void SetWeaponTint(Color c) { _weaponTint = c; ApplyWeaponTint(); }
     public void SetCoreTint(Color c) { _coreTint = c; ApplyCoreTint(); }
 
-    // -------- tint apply --------
     private void ApplyFrameTint()
     {
         if (_frameInst == null) return;
@@ -227,7 +243,9 @@ public class RobotAssembler : MonoBehaviour
         TintUtility.ApplyTintToRenderers(root, tint);
     }
 
-    // -------- internals --------
+    // -------------------------------------------------------------------------
+    // Internal utilities
+    // -------------------------------------------------------------------------
     private static int ResolveIndex(int byId, int fallbackIndex, int count)
     {
         int idx = byId >= 0 ? byId : fallbackIndex;
@@ -251,6 +269,9 @@ public class RobotAssembler : MonoBehaviour
         return null;
     }
 
+    /// <summary>
+    /// Recursively searches a hierarchy for a child transform by name.
+    /// </summary>
     private static Transform FindInChildren(Transform root, string name)
     {
         if (root == null) return null;

@@ -1,22 +1,28 @@
 using UnityEngine;
-using static UnityEngine.GraphicsBuffer;
-using static UnityEngine.UI.GridLayoutGroup;
 
+/// <summary>
+/// Simple forward-moving projectile that deals damage on hit.
+/// Includes continuous collision detection via raycasting to avoid tunneling.
+/// </summary>
 public class Projectile : MonoBehaviour
 {
     [Header("Tuning")]
+    [Tooltip("Travel speed in meters per second.")]
     public float speed = 30f;
 
-    public LayerMask hitMask; // Set in prefab: Robots + Environment
+    [Tooltip("Mask of layers this projectile can collide with (robots + environment).")]
+    public LayerMask hitMask;
 
     private Vector3 _prevPos;
     private float _traveled;
     private GameObject _owner;
 
-
     private float damage;
     private float maxDistance;
 
+    /// <summary>
+    /// Initializes the projectile with dynamic values provided by the firing weapon.
+    /// </summary>
     public void Init(GameObject owner, float damageOverride, float speedOverride, float maxDistanceOverride, LayerMask maskOverride)
     {
         _owner = owner;
@@ -36,7 +42,7 @@ public class Projectile : MonoBehaviour
         float step = speed * Time.deltaTime;
         Vector3 dir = transform.forward;
 
-        // Sweep to avoid tunneling
+        // Sweep to avoid tunneling through thin colliders
         if (Physics.Raycast(_prevPos, dir, out RaycastHit hit, step, hitMask, QueryTriggerInteraction.Ignore))
         {
             HandleHit(hit);
@@ -57,15 +63,14 @@ public class Projectile : MonoBehaviour
     {
         if (hit.collider != null)
         {
-            // Adapt this to your health API
             if (hit.collider.GetComponentInParent<RobotHealth>() is RobotHealth health)
             {
-                // If your RobotHealth uses a different method name, change it here.
                 health.TakeDamage(damage);
             }
         }
-        Debug.Log($"Projectile hit for {damage} damage");
-        // TODO optional: spawn impact VFX
+
+        Debug.Log($"Projectile hit {hit.collider?.name ?? "unknown"} for {damage} damage");
+        // TODO: optional VFX / impact effect
         Destroy(gameObject);
     }
 }

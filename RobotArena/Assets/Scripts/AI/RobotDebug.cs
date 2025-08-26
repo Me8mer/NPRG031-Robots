@@ -1,81 +1,223 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-[ExecuteAlways]
-public class RobotDebugDraw : MonoBehaviour
+[RequireComponent(typeof(NavMeshAgent))]
+public class AIDebugProbe : MonoBehaviour
 {
-    [SerializeField] private bool drawPath = true;
-    [SerializeField] private bool drawLOS = true;
-    [SerializeField] private bool drawLOF = true;
+    [Header("Toggles")]
+    [SerializeField] private bool enableProbe = true;
+    [SerializeField] private bool drawGizmos = true;
 
-    private RobotController _rc;
+    [Header("Env")]
+    [SerializeField] private LayerMask wallMask;
+
+    [Header("Stuck Heuristics")]
+    [SerializeField] private float minRemainToCare = 0.5f;
+    [SerializeField] private float slowSpeed = 0.05f;
+    [SerializeField] private float stuckSeconds = 0.6f;
+
     private NavMeshAgent _agent;
+    private RobotController _rc;
+    private CombatNavigator _nav;
+    private float _stuckTimer;
+    private string _lastStuckMsg;
 
-    private void OnEnable()
+    void Awake()
     {
-        _rc = GetComponent<RobotController>();
         _agent = GetComponent<NavMeshAgent>();
+        _rc = GetComponent<RobotController>();
+        if (_rc != null) _nav = _rc.GetNavigator();
+
+        // Common misconfig: non-kinematic rigidbody + NavMeshAgent
+        var rb = GetComponent<Rigidbody>();
+        if (rb && !rb.isKinematic)
+        {
+            Debug.LogWarning($"[AIDbg] {name}: Non-kinematic Rigidbody together with NavMeshAgent. Physics can push you through walls or fight the agent. Consider isKinematic=true.");
+        }
     }
 
-    private void OnDrawGizmosSelected()
+    void Update()
     {
-        if (_rc == null) return;
+        if (Time.frameCount % 60 == 0)
+        {
+            Debug.Log($"[AIDbg] {name} beat: " +
+                      $"hasPath={_agent.hasPath} " +
+                      $"status={_agent.pathStatus} " +
+                      $"rem={_agent.remainingDistance:F2} " +
+                      $"isStopped={_agent.isStopped} " +
+                      $"onNavMesh={_agent.isOnNavMesh} " +
+                      $"vel={_agent.velocity.magnitude:F2} " +
+                      $"desired={_agent.desiredVelocity.magnitude:F2}");
+        }
+        if (!enableProbe || _agent == null) return;
 
-        // 1) Path
-        if (drawPath && _agent != null && _agent.hasPath && _agent.path != null)
+        // 1) LOS/LOF sanity
+        bool lof = HasLOF();
+
+        // 2) Path sanity
+        bool pathOK = _agent.hasPath && !_agent.pathPending && _agent.pathStatus == NavMeshPathStatus.PathComplete;
+
+        // 3) Motion sanity
+        bool tryingToMove = _agent.remainingDistance > minRemainToCare && _agent.desiredVelocity.sqrMagnitude > 0.001f;
+        bool barelyMoving = _agent.velocity.magnitude < slowSpeed;
+
+        // 4) Wall proximity / wedge
+        bool nearWall = NearWall(out var hitCol, out var depen);
+        bool navEdgeBlock = NavBlockedToDestination(out var hitPos);
+
+        if (tryingToMove && barelyMoving)
+        {
+            _stuckTimer += Time.deltaTime;
+        }
+        else
+        {
+            _stuckTimer = 0f;
+        }
+
+        if (_stuckTimer >= stuckSeconds)
+        {
+            string reason = "";
+            if (!pathOK) reason += " path!=OK";
+            if (nearWall) reason += $" wedge({hitCol?.name}) depen={depen:F2}";
+            if (navEdgeBlock) reason += $" navRayHit@{hitPos}";
+            if (!lof) reason += " noLOF";
+
+            string msg = $"[AIDbg] STUCK {name}: vel={_agent.velocity.magnitude:F2} rem={_agent.remainingDistance:F2} desired={_agent.desiredVelocity.magnitude:F2} " +
+                         $"status={_agent.pathStatus} hasPath={_agent.hasPath} pending={_agent.pathPending} isOnNavMesh={_agent.isOnNavMesh} |{reason}";
+            if (msg != _lastStuckMsg)
+            {
+                Debug.Log(msg);
+                _lastStuckMsg = msg;
+            }
+        }
+    }
+
+    private bool HasLOF()
+    {
+        if (_rc == null) return false;
+        var enemy = _rc.GetDecision().MoveEnemy;
+        if (enemy == null) return false;
+
+        var targeting = _rc.GetTargeting();
+        var fireT = _rc.GetFirePointTransform();
+        if (targeting == null || fireT == null) return false;
+
+        Vector3? aim = targeting.AimPoint(enemy);
+        if (!aim.HasValue) return false;
+
+        return targeting.HasLineOfFire(fireT.position, aim.Value, _rc.GetFireObstaclesMask());
+    }
+
+    private bool NearWall(out Collider hitCol, out float depenMagnitude)
+    {
+        hitCol = null;
+        depenMagnitude = 0f;
+        float r = Mathf.Max(_agent.radius * 0.95f, 0.1f);
+        var cols = Physics.OverlapSphere(transform.position, r, wallMask, QueryTriggerInteraction.Ignore);
+        if (cols == null || cols.Length == 0) return false;
+
+        // Try to compute depenetration against first collider
+        foreach (var c in cols)
+        {
+            Vector3 dir;
+            float dist;
+            // Use a small sphere matching agent radius
+            bool overlap = Physics.ComputePenetration(
+                c, c.transform.position, c.transform.rotation,
+                // Represent the agent as a small capsule upright
+                gameObject.AddComponent<SphereCollider>(), transform.position, transform.rotation,
+                out dir, out dist
+            );
+            // Avoid actually adding a collider
+            var sc = GetComponent<SphereCollider>();
+            if (sc) Destroy(sc);
+
+            if (overlap)
+            {
+                hitCol = c;
+                depenMagnitude = dist;
+                return true;
+            }
+        }
+        return true; // near wall, even if not penetrating
+    }
+
+    private bool NavBlockedToDestination(out Vector3 hitPos)
+    {
+        hitPos = default;
+        if (!_agent.hasPath || _agent.pathPending) return false;
+
+        var corners = _agent.path.corners;
+        if (corners == null || corners.Length < 2) return false;
+
+        // cast along last segment to see if navmesh edge blocks
+        Vector3 from = corners[corners.Length - 2];
+        Vector3 to = corners[corners.Length - 1];
+        if (NavMesh.Raycast(from, to, out var hit, NavMesh.AllAreas))
+        {
+            hitPos = hit.position;
+            return true;
+        }
+        return false;
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!drawGizmos || _agent == null) return;
+
+        // Path corners
+        if (_agent.hasPath)
         {
             var corners = _agent.path.corners;
-            Gizmos.color = Color.yellow;
             for (int i = 0; i < corners.Length - 1; i++)
             {
-                Gizmos.DrawLine(corners[i] + Vector3.up * 0.05f, corners[i + 1] + Vector3.up * 0.05f);
+                Debug.DrawLine(corners[i] + Vector3.up * 0.05f, corners[i + 1] + Vector3.up * 0.05f, Color.cyan);
             }
-            Gizmos.DrawSphere(_agent.destination + Vector3.up * 0.05f, 0.1f);
         }
 
-        // Decide target to visualize (prefer fire target, else move target)
-        var decision = _rc.GetDecision();
-        Transform tgt = null;
-        // Fix: Use correct comparison for struct, and check for default value
-        if (decision.FireEnemy != null)
-        {
-            tgt = decision.FireEnemy.transform;
-        }
-        else if (decision.MoveEnemy != null)
-        {
-            tgt = decision.MoveEnemy.transform;
-        }
-        if (tgt == null) return;
+        // Desired velocity arrow
+        Vector3 p = transform.position;
+        Debug.DrawLine(p, p + _agent.desiredVelocity, Color.yellow);
 
-        var nav = _rc.GetNavigator();
-        var tgtRc = tgt.GetComponentInParent<RobotController>();
-        var targeting = _rc.GetTargeting();
-
-        // Aim point
-        Vector3 aim = tgt.position + Vector3.up * 1f;
-        var aimOpt = tgtRc ? targeting.AimPoint(tgtRc) : (Vector3?)null;
-        if (aimOpt != null) aim = aimOpt.Value;
-
-        // 2) Body LOS
-        if (drawLOS)
+        // LOF ray
+        if (Application.isPlaying && _rc != null)
         {
-            bool los = nav.HasLineOfSight(transform.position, aim);
-            Gizmos.color = los ? Color.cyan : Color.red;
-            Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, aim);
-        }
-
-        // 3) Muzzle LOF
-        if (drawLOF)
-        {
-            var muzzle = _rc.GetFirePointTransform();
-            if (muzzle != null)
+            var enemy = _rc.GetDecision().MoveEnemy;
+            var targeting = _rc.GetTargeting();
+            var fireT = _rc.GetFirePointTransform();
+            if (enemy && targeting != null && fireT != null)
             {
-                bool lof = targeting.HasLineOfFire(muzzle.position, aim, _rc.GetFireObstaclesMask());
-                Gizmos.color = lof ? Color.green : new Color(1f, 0.5f, 0f); // orange means blocked
-                Gizmos.DrawLine(muzzle.position, aim);
-                Gizmos.DrawSphere(muzzle.position, 0.06f);
-                Gizmos.DrawSphere(aim, 0.06f);
+                var aim = targeting.AimPoint(enemy);
+                if (aim.HasValue)
+                {
+                    Debug.DrawLine(fireT.position, aim.Value, Color.red);
+                }
             }
+
+            // Attack ring, if navigator is available
+            if (_nav != null && enemy)
+            {
+                float ring = _nav.ComputeAttackRing(enemy.transform, 1.0f);
+                DrawRing(enemy.transform.position, ring, new Color(0.2f, 0.9f, 0.2f, 0.8f));
+            }
+        }
+
+        // Agent radius
+        Gizmos.color = new Color(1f, 0.5f, 0f, 0.35f);
+        Gizmos.DrawWireSphere(transform.position, Mathf.Max(_agent.radius * 0.95f, 0.1f));
+    }
+
+    private void DrawRing(Vector3 center, float radius, Color c)
+    {
+        Gizmos.color = c;
+        const int segs = 40;
+        Vector3 prev = center + new Vector3(radius, 0f, 0f);
+        for (int i = 1; i <= segs; i++)
+        {
+            float t = (i / (float)segs) * Mathf.PI * 2f;
+            Vector3 next = center + new Vector3(Mathf.Cos(t) * radius, 0f, Mathf.Sin(t) * radius);
+            Debug.DrawLine(prev + Vector3.up * 0.02f, next + Vector3.up * 0.02f, c);
+            prev = next;
         }
     }
 }

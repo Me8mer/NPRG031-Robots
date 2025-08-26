@@ -4,9 +4,19 @@ using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Handles saving and loading of <see cref="RobotBuildData"/> objects to disk.
+/// 
+/// In Editor: saves under <repo-root>/RobotBuilds  
+/// In Build: saves under <see cref="Application.persistentDataPath"/>/RobotBuilds
+/// </summary>
 public static class BuildSerializer
 {
-    // Editor saves to <repo-root>/RobotBuilds, builds save to persistentDataPath
+    /// <summary>
+    /// Path where builds are saved.
+    /// Editor: repo root,  
+    /// Runtime: persistentDataPath.
+    /// </summary>
     public static string SavesDirectory
     {
         get
@@ -14,7 +24,7 @@ public static class BuildSerializer
 #if UNITY_EDITOR
             string assets = Application.dataPath;                       // <repo-root>/<Project>/Assets
             var projectDir = Directory.GetParent(assets);               // <repo-root>/<Project>
-            var repoRoot = projectDir?.Parent ?? projectDir;          // <repo-root>
+            var repoRoot = projectDir?.Parent ?? projectDir;            // <repo-root>
             return Path.Combine(repoRoot.FullName, "RobotBuilds");
 #else
             return Path.Combine(Application.persistentDataPath, "RobotBuilds");
@@ -22,6 +32,7 @@ public static class BuildSerializer
         }
     }
 
+    /// <summary>Result of a Save operation, with metadata about uniqueness/renaming.</summary>
     public struct SaveResult
     {
         public string path;
@@ -30,6 +41,9 @@ public static class BuildSerializer
         public bool renamed;
     }
 
+    /// <summary>
+    /// Saves build to a unique filename. If a file already exists, it adds (2), (3), etc.
+    /// </summary>
     public static SaveResult SaveUnique(RobotBuildData data)
     {
         if (!Directory.Exists(SavesDirectory))
@@ -57,7 +71,10 @@ public static class BuildSerializer
         };
     }
 
-    // Overwrite an existing file exactly. Use in edit mode.
+    /// <summary>
+    /// Overwrites an existing build file exactly.
+    /// Used in edit mode when updating an existing save.
+    /// </summary>
     public static string SaveExact(RobotBuildData data, string fullPath)
     {
         if (string.IsNullOrWhiteSpace(fullPath)) throw new ArgumentException("fullPath is empty");
@@ -75,7 +92,9 @@ public static class BuildSerializer
         return fullPath;
     }
 
-    // Return all build file paths sorted by last write time desc
+    /// <summary>
+    /// Returns all build file paths, sorted by last modified time (newest first).
+    /// </summary>
     public static List<string> ListBuildFiles()
     {
         if (!Directory.Exists(SavesDirectory)) return new List<string>();
@@ -84,6 +103,10 @@ public static class BuildSerializer
                         .ToList();
     }
 
+    /// <summary>
+    /// Loads a <see cref="RobotBuildData"/> from a file path.
+    /// Returns null on failure.
+    /// </summary>
     public static RobotBuildData Load(string fullPath)
     {
         if (string.IsNullOrWhiteSpace(fullPath) || !File.Exists(fullPath)) return null;
@@ -100,7 +123,12 @@ public static class BuildSerializer
         }
     }
 
-    // ---------- helpers ----------
+    // ---------- Helpers ----------
+
+    /// <summary>
+    /// Generates a unique file name if <paramref name="fileName"/> already exists.
+    /// Adds (2), (3), etc., or falls back to timestamp if too many.
+    /// </summary>
     private static string GetUniqueFileName(string dir, string fileName)
     {
         var existing = new HashSet<string>(
@@ -120,6 +148,9 @@ public static class BuildSerializer
         return $"{name}_{DateTime.UtcNow:yyyyMMdd_HHmmssfff}{ext}";
     }
 
+    /// <summary>
+    /// Sanitizes a string into a safe file name by replacing invalid characters with underscores.
+    /// </summary>
     private static string MakeSafeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "Unnamed";

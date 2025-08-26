@@ -3,8 +3,8 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// RETREAT
-/// Runs away from all visible enemies and prefers positions that break line of sight.
+/// RETREAT state. Robot runs away from visible enemies,
+/// preferring positions that increase distance and break line of sight.
 /// </summary>
 public class RetreatState : IState
 {
@@ -13,16 +13,18 @@ public class RetreatState : IState
     private readonly NavMeshAgent _agent;
     private readonly Perception _perception;
     private readonly RobotStats _stats;
-    private CombatNavigator _nav;
+    private readonly CombatNavigator _nav;
 
-    // Re-path every quarter second so we react but don’t spam pathing
     private float _nextRepathTime;
     private const float RepathInterval = 0.25f;
 
-    // Tunables (can move to stats later if you want)
-    private const float HopDistance = 12f;   // how far one retreat hop aims
+    // Tunables (could move to RobotStats if needed)
+    private const float HopDistance = 12f;   // distance of one retreat hop
     private const int Samples = 10;          // cone samples
-    private const float ConeHalfAngle = 55f; // degrees around escape dir
+    private const float ConeHalfAngle = 55f; // search cone in degrees
+    private const float SpeedModifier = 1.2f;
+
+
 
     public RetreatState(StateMachine fsm)
     {
@@ -37,19 +39,19 @@ public class RetreatState : IState
     public void Enter()
     {
         _controller.SetCurrentState(RobotState.Retreat);
-        _agent.isStopped = false;
-        _agent.autoBraking = false; // keep speed while hopping between retreat points
-        // Reasonable speed: same as Chase multiplier (fast get-out)
-        _agent.speed = _controller.GetEffectiveSpeed(5F);
 
+        _agent.isStopped = false;
+        _agent.autoBraking = false;
+        _agent.speed = _controller.GetEffectiveSpeed(SpeedModifier);
         SetBestRetreatPoint();
         _nextRepathTime = Time.time + RepathInterval;
+
         Debug.Log($"{_controller.name} → Retreat");
     }
 
     public void Tick()
     {
-        // If high-level goal changed, let the helper switch state
+        // Check if decision layer still wants us retreating
         var decision = _controller.GetDecision();
         if (decision.Move != MovementIntent.Retreat)
         {
@@ -57,6 +59,7 @@ public class RetreatState : IState
             return;
         }
 
+        // Periodically re-evaluate retreat point
         if (Time.time >= _nextRepathTime && !_agent.pathPending)
         {
             SetBestRetreatPoint();
@@ -66,16 +69,22 @@ public class RetreatState : IState
 
     public void Exit() { }
 
-    // ---------- Logic ----------
-
+    /// <summary>
+    /// Picks the best retreat point away from visible threats
+    /// and sets it as NavMeshAgent destination.
+    /// </summary>
     private void SetBestRetreatPoint()
     {
         Vector3 origin = _controller.transform.position;
         List<RobotController> threats = _perception.GetEnemiesInRange();
-        if (threats.Count == 0) { StateTransitionHelper.HandleTransition(_fsm, _controller); return; }
 
-        Vector3 best = _nav.FindBestRetreatHop(origin, threats, HopDistance, Samples, ConeHalfAngle); 
+        if (threats.Count == 0)
+        {
+            StateTransitionHelper.HandleTransition(_fsm, _controller);
+            return;
+        }
+
+        Vector3 best = _nav.FindBestRetreatHop(origin, threats, HopDistance, Samples, ConeHalfAngle);
         _agent.SetDestination(best);
     }
-
 }

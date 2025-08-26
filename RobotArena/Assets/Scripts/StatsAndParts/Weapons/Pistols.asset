@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Pistols
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
   id: Pistols
-  attackSpeed: 60
+  attackSpeed: 90
   attackRange: 40
-  attackDamage: 50
+  attackDamage: 75
   baseWeight: 5

@@ -58,6 +58,12 @@ public sealed class CombatNavigator
         if (!a || !b) return false;
         return HasLineOfSight(a.position, b.position);
     }
+    private static Vector3 ProjectToNavMesh(Vector3 desired)
+    {
+        return UnityEngine.AI.NavMesh.SamplePosition(desired, out var hit, 1.0f, UnityEngine.AI.NavMesh.AllAreas)
+            ? hit.position
+            : desired;
+    }
 
     public bool HasLineOfFireTo(Transform enemy)
     {
@@ -115,12 +121,12 @@ public sealed class CombatNavigator
     // ---------- Destination throttling ----------
     public bool TrySetDestinationSmart(Vector3 dest, float minRepathDist = 0.5f, float cooldown = 0.10f)
     {
-        if (!_agent) return false;
+        if (_agent == null) return false;
         if (Time.time < _nextPathTime) return false;
         if (_agent.pathPending) return false;
         if (Vector3.Distance(_c.transform.position, dest) < minRepathDist) return false;
 
-        _agent.SetDestination(dest);
+        _agent.SetDestination(ProjectToNavMesh(dest));
         _nextPathTime = Time.time + cooldown;
         return true;
     }
@@ -128,7 +134,7 @@ public sealed class CombatNavigator
     public bool ForceSetDestination(Vector3 dest, float cooldownAfter = 0.05f)
     {
         if (_agent == null) return false;
-        _agent.SetDestination(dest);
+        _agent.SetDestination(ProjectToNavMesh(dest));
         _nextPathTime = Time.time + cooldownAfter;
         return true;
     }

@@ -1,19 +1,19 @@
 using UnityEngine;
-using UnityEngine.AI;
 using System.Collections.Generic;
 
-
 /// <summary>
-/// Movement transitions based on the controller's latest DecisionResult.
+/// Centralized helper that manages transitions between states based on the
+/// current <see cref="DecisionResult"/> of a <see cref="RobotController"/>.
+/// 
+/// Keeps short-term memory per robot to avoid jittery oscillations.
 /// </summary>
 public static class StateTransitionHelper
 {
     // --- Transition tuning ---
-    private const float ChaseStrafeGate = 0.35f;   // gate flips between ChaseEnemy <-> StrafeEnemy
-    private const float TargetSwitchGate = 0.30f;  // gate rapid target retargets within same state
-    private const float RangeTolerance = 2;
+    private const float ChaseStrafeGate = 0.35f;   // delay before allowing Chase <-> Strafe flip
+    private const float TargetSwitchGate = 0.30f;  // delay before retargeting within same state
 
-    // Per-controller memory to reduce oscillations
+    // Per-controller memory
     private class Mem
     {
         public MovementIntent lastMove;
@@ -34,73 +34,66 @@ public static class StateTransitionHelper
         return m;
     }
 
-    // Allow RobotController to clean up on destroy
-    public static void Forget(RobotController c)
-    {
-        _mem.Remove(c.GetInstanceID());
-    }
+    /// <summary>Clears per-controller memory (called when controller is destroyed).</summary>
+    public static void Forget(RobotController c) => _mem.Remove(c.GetInstanceID());
 
-
+    /// <summary>
+    /// Examines the current decision of <paramref name="controller"/> and
+    /// switches to a new state if required. Handles hysteresis to avoid
+    /// rapid oscillations.
+    /// </summary>
     public static void HandleTransition(StateMachine fsm, RobotController controller)
     {
-        var decision = controller.GetDecision();             // movement + targets
+        var decision = controller.GetDecision();
         var currentState = controller.CurrentState;
         var mem = GetMem(controller);
 
-        // Figure out the desired target transform for this move
-        Transform desiredTarget = null;
-        switch (decision.Move)
+        // Determine target transform for this move
+        Transform desiredTarget = decision.Move switch
         {
-            case MovementIntent.StrafeEnemy:
-                desiredTarget = decision.MoveEnemy ? decision.MoveEnemy.transform : null;
-                break;
-            case MovementIntent.ChaseEnemy:
-                desiredTarget = decision.MoveEnemy ? decision.MoveEnemy.transform : null;
-                break;
-            case MovementIntent.ChasePickup:
-                desiredTarget = decision.MovePickup ? decision.MovePickup.transform : null;
-                break;
-        }
+            MovementIntent.StrafeEnemy => decision.MoveEnemy ? decision.MoveEnemy.transform : null,
+            MovementIntent.ChaseEnemy => decision.MoveEnemy ? decision.MoveEnemy.transform : null,
+            MovementIntent.ChasePickup => decision.MovePickup ? decision.MovePickup.transform : null,
+            _ => null
+        };
 
-        // Gate frequent flips between ChaseEnemy and StrafeEnemy
+        // Flip detection
         bool chaseStrafeFlip =
             (mem.lastMove == MovementIntent.ChaseEnemy && decision.Move == MovementIntent.StrafeEnemy) ||
             (mem.lastMove == MovementIntent.StrafeEnemy && decision.Move == MovementIntent.ChaseEnemy);
 
-        // If the requested move equals current and target did not change, do nothing
+        // IDLE
         if (decision.Move == MovementIntent.Idle)
         {
             if (currentState == RobotState.Idle) return;
             if (Time.time < mem.gateUntil && (currentState == RobotState.Chase || currentState == RobotState.Strafe))
                 return;
+
             fsm.ChangeState(new IdleState(fsm));
             mem.lastMove = MovementIntent.Idle;
             mem.lastTarget = null;
             return;
         }
 
+        // RETREAT
         if (decision.Move == MovementIntent.Retreat)
         {
             if (currentState == RobotState.Retreat) return;
+
             fsm.ChangeState(new RetreatState(fsm));
             mem.lastMove = MovementIntent.Retreat;
             mem.lastTarget = null;
             return;
         }
 
-        // Shared gates for move types that carry a target
-        bool sameMoveAsBefore = decision.Move == mem.lastMove;
+        // Shared helpers
         bool sameTargetAsBefore = desiredTarget != null && mem.lastTarget == desiredTarget;
 
-        // If target is unchanged and we are already in the corresponding state, early out
+        // STRAFE
         if (decision.Move == MovementIntent.StrafeEnemy)
         {
             if (currentState == RobotState.Strafe && sameTargetAsBefore) return;
-
-            // Gate rapid flips Chase<->Strafe
             if (chaseStrafeFlip && Time.time < mem.gateUntil) return;
-
-            // Gate rapid target switches while strafing
             if (currentState == RobotState.Strafe && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
 
             if (desiredTarget != null)
@@ -120,11 +113,10 @@ public static class StateTransitionHelper
             return;
         }
 
+        // PICKUP
         if (decision.Move == MovementIntent.ChasePickup)
         {
             if (currentState == RobotState.Chase && sameTargetAsBefore) return;
-
-            // Switching from strafing to pickup should be allowed promptly, but still respect target spam
             if (currentState == RobotState.Chase && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
 
             if (desiredTarget != null)
@@ -143,14 +135,11 @@ public static class StateTransitionHelper
             return;
         }
 
+        // ENEMY CHASE
         if (decision.Move == MovementIntent.ChaseEnemy)
         {
             if (currentState == RobotState.Chase && sameTargetAsBefore) return;
-
-            // Gate rapid flips Chase<->Strafe
             if (chaseStrafeFlip && Time.time < mem.gateUntil) return;
-
-            // Gate rapid target switches while chasing
             if (currentState == RobotState.Chase && !sameTargetAsBefore && Time.time < mem.targetSwitchGateUntil) return;
 
             if (desiredTarget != null)
@@ -175,6 +164,4 @@ public static class StateTransitionHelper
         mem.lastMove = MovementIntent.Idle;
         mem.lastTarget = null;
     }
-
-    
 }

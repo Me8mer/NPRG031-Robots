@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Tracks
   m_EditorClassIdentifier: 
   id: Tracks
-  baseSpeed: 75
+  baseSpeed: 100
   baseWeight: 30
   turningSpeed: 20

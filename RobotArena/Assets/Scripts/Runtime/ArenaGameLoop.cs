@@ -3,24 +3,30 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// Manages the overall arena game loop:
+/// - Handles countdown, round flow, pausing
+/// - Resets and revives robots each round
+/// - Tracks wins and updates scoreboard
+/// </summary>
 public class ArenaGameLoop : MonoBehaviour
 {
     [Header("Round Flow")]
-    [Tooltip("Seconds to Countdwon!")]
+    [Tooltip("Seconds for round countdown.")]
     [SerializeField] private int countdownSeconds = 3;
 
-    [Tooltip("Seconds to show the winner before next round")]
+    [Tooltip("Seconds to show the winner before next round.")]
     [SerializeField] private float winnerPause = 8f;
+
     private Transform[] spawnPoints;
     private ArenaScoreboard scoreboard;
     private RobotController skipRobot;
 
     [Header("Pause")]
-    [Tooltip("Panel (Canvas child) to show while paused")]
+    [Tooltip("Panel (Canvas child) to show while paused.")]
     [SerializeField] private GameObject pausePanel;
 
-
-    // Simple score storage. Keyed by object instance so names can duplicate.
+    // Simple score storage, keyed by robot instance
     private readonly Dictionary<RobotController, int> _scores = new();
 
     // Per-robot start transforms
@@ -32,9 +38,9 @@ public class ArenaGameLoop : MonoBehaviour
     private bool _initialized;
     private bool _paused;
 
-    void Start()
+    private void Start()
     {
-        // ensure normal time on scene start
+        // Ensure normal time on scene start
         Time.timeScale = 1f;
         if (pausePanel) pausePanel.SetActive(false);
         if (_initialized) return;
@@ -50,20 +56,21 @@ public class ArenaGameLoop : MonoBehaviour
         StartCoroutine(RunLoop());
     }
 
-    void Update()
+    private void Update()
     {
         if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Escape))
-
         {
             TogglePause();
         }
     }
 
-    public void Initialize(
-    List<RobotController> robots,
-    Transform[] spawns,
-    ArenaScoreboard board,
-    RobotController skipRobot = null)
+    /// <summary>
+    /// Initializes loop externally (used by ArenaBootstrap).
+    /// </summary>
+    public void Initialize(List<RobotController> robots,
+                           Transform[] spawns,
+                           ArenaScoreboard board,
+                           RobotController skipRobot = null)
     {
         _robots = robots ?? new List<RobotController>();
         spawnPoints = spawns;
@@ -76,16 +83,19 @@ public class ArenaGameLoop : MonoBehaviour
         StartCoroutine(RunLoop());
     }
 
+    // ---------- Main Loop ----------
     private IEnumerator RunLoop()
     {
         while (true)
         {
             ResetAllRobotsToStart();
+
             if (scoreboard) scoreboard.SetMessage("Round starting...");
             yield return Countdown();
+
             UnlockAll();
 
-            // Fight phase: wait until one (or zero) left
+            // Fight phase
             _aliveCount = CountAlive();
             while (_aliveCount > 1)
             {
@@ -113,8 +123,8 @@ public class ArenaGameLoop : MonoBehaviour
     {
         foreach (var rc in _robots.ToArray())
         {
-            // handle deleted robots gracefully
-            if (rc == skipRobot || rc == null) { continue; }
+            if (rc == skipRobot || rc == null) continue;
+
             var hp = rc.GetHealth();
             if (hp != null)
             {
@@ -122,16 +132,14 @@ public class ArenaGameLoop : MonoBehaviour
                 hp.RefillToMax();
             }
 
-            // Lock logic while we reposition and reset
+            // Lock while repositioning
             rc.SetControlLocked(true);
 
-            // Warp to start pose
             if (_starts.TryGetValue(rc, out var sp))
             {
                 rc.WarpTo(sp.pos, sp.rot);
             }
 
-            // Reset state to Idle and clear agent path
             rc.SetCurrentState(RobotState.Idle);
             rc.GetAgent()?.ResetPath();
         }
@@ -158,8 +166,8 @@ public class ArenaGameLoop : MonoBehaviour
 
     private void OnRobotDeath()
     {
-        // RobotHealth invokes this just before soft-destroy or Destroy.
-        // We poll alive count in the loop, so nothing needed here.
+        // Health invokes this just before destruction.
+        // No-op: alive count is polled in the loop.
     }
 
     private int CountAlive()
@@ -219,6 +227,7 @@ public class ArenaGameLoop : MonoBehaviour
                 hp.SetDestroyOnDeath(false);
                 hp.OnDeath += OnRobotDeath;
             }
+
             var sp = (spawnPoints != null && spawnPoints.Length > 0)
                 ? spawnPoints[i % spawnPoints.Length]
                 : rc.transform;
@@ -227,7 +236,8 @@ public class ArenaGameLoop : MonoBehaviour
             if (!_scores.ContainsKey(rc)) _scores[rc] = 0;
         }
     }
-    // ---------- Pause control ----------
+
+    // ---------- Pause ----------
     public void TogglePause()
     {
         if (_paused) Resume();
@@ -241,14 +251,11 @@ public class ArenaGameLoop : MonoBehaviour
 
         if (pausePanel)
         {
-            // Ensure it’s visible and interactive regardless of timeScale
             pausePanel.SetActive(true);
 
-            // If there’s an Animator on the panel, force it to unscaled time
             var anim = pausePanel.GetComponent<Animator>();
             if (anim) anim.updateMode = AnimatorUpdateMode.UnscaledTime;
 
-            // If the panel lives on a separate canvas, make sure it renders with the main camera
             var canvas = pausePanel.GetComponentInParent<Canvas>();
             if (canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay && canvas.worldCamera == null)
                 canvas.worldCamera = Camera.main;
@@ -265,11 +272,8 @@ public class ArenaGameLoop : MonoBehaviour
         if (pausePanel) pausePanel.SetActive(false);
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
-        // make sure we never leave the game frozen when this object goes away
-        if (_paused) Time.timeScale = 1f;
+        if (_paused) Time.timeScale = 1f; // never leave game frozen
     }
-
 }
-

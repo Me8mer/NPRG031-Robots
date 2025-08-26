@@ -1,12 +1,21 @@
 using UnityEngine;
 
+/// <summary>
+/// Utility class for constructing <see cref="RobotStats"/> from part definitions.
+/// 
+/// Supports both: 
+/// - Building from part IDs (for loading saved robots / arena spawning)
+/// - Building from indices (for live Builder UI selections)
+/// </summary>
 public static class RobotStatsBuilder
 {
-    // Sensible MVP defaults. Move these into definitions later if you want full design control.
+    // MVP default perception values (could later move into Frame/Core definitions)
     private const float DefaultSightAngle = 120f;
 
-
-    /// Build from saved IDs (use for Load and arena spawning).
+    /// <summary>
+    /// Builds a <see cref="RobotStats"/> object from part IDs (as stored in <see cref="RobotBuildData"/>).
+    /// Used when loading robots into the arena.
+    /// </summary>
     public static RobotStats BuildFromIds(RobotBuildData data, BodyPartsCatalog catalog)
     {
         if (!catalog)
@@ -23,7 +32,10 @@ public static class RobotStatsBuilder
         return Compose(frame, weapon, lower, core);
     }
 
-    /// Build from current selection indices (use in the Builder UI).
+    /// <summary>
+    /// Builds a <see cref="RobotStats"/> object from catalog indices.
+    /// Used by the Builder UI during selection.
+    /// </summary>
     public static RobotStats BuildFromIndices(int iFrame, int iWeapon, int iLower, int iCore, BodyPartsCatalog catalog)
     {
         if (catalog == null)
@@ -40,6 +52,10 @@ public static class RobotStatsBuilder
         return Compose(frame, weapon, lower, core);
     }
 
+    /// <summary>
+    /// Fills an existing <see cref="RobotStats"/> object with values built from part IDs.
+    /// This preserves shared references (e.g. Perception and Health still point to the same stats).
+    /// </summary>
     public static void FillFromIds(RobotStats dst, RobotBuildData data, BodyPartsCatalog catalog)
     {
         if (dst == null) return;
@@ -47,54 +63,64 @@ public static class RobotStatsBuilder
         dst.CopyFrom(built);
     }
 
-    public static void FillFromIndices(
-        RobotStats dst, int iFrame, int iWeapon, int iLower, int iCore, BodyPartsCatalog catalog)
+    /// <summary>
+    /// Fills an existing <see cref="RobotStats"/> object with values built from indices.
+    /// </summary>
+    public static void FillFromIndices(RobotStats dst, int iFrame, int iWeapon, int iLower, int iCore, BodyPartsCatalog catalog)
     {
         if (dst == null) return;
         var built = BuildFromIndices(iFrame, iWeapon, iLower, iCore, catalog);
         dst.CopyFrom(built);
     }
 
+    /// <summary>
+    /// Core composition logic that merges stats from all definitions.
+    /// Called by both BuildFromIds and BuildFromIndices.
+    /// </summary>
     private static RobotStats Compose(FrameDefinition frame, WeaponDefinition weapon, LowerDefinition lower, CoreDefinition core)
     {
         var stats = new RobotStats();
 
-        // Frame
-        stats.maxHealth = frame ? frame.baseHealth : 0f;        // see your Compose comments
+        // ---- FRAME ----
+        // Defines base durability and weight
+        stats.maxHealth = frame ? frame.baseHealth : 0f;
         stats.maxArmor = frame ? frame.baseArmor : 0f;
         float totalWeight = frame ? frame.baseWeight : 0f;
 
-        // Weapon
+        // ---- WEAPON ----
+        // Defines offense capability and adds weight
         if (weapon)
         {
             stats.damage = weapon.attackDamage;
             stats.attackRange = weapon.attackRange;
-            stats.attackSpeed = weapon.attackSpeed;   // shots per second
+            stats.attackSpeed = weapon.attackSpeed;   // shots per minute
             totalWeight += weapon.baseWeight;
-
- 
         }
 
-        // Lower
+        // ---- LOWER BODY ----
+        // Defines movement speed and turning speed, adds weight
         if (lower)
         {
             stats.baseSpeed = lower.baseSpeed;
             totalWeight += lower.baseWeight;
-            stats.turningSpeed = lower.turningSpeed; 
+            stats.turningSpeed = lower.turningSpeed;
         }
-        // Core modifiers
+
+        // ---- CORE ----
+        // Provides modifiers to armor and attack speed (expandable for more core bonuses later)
         if (core)
         {
             stats.maxArmor += core.armor;
             stats.attackSpeed += core.attackSpeed;
-            // add more when you extend CoreDefinition
         }
 
-        // Perception
-        stats.sightAngle = DefaultSightAngle;    
+        // ---- PERCEPTION ----
+        stats.sightAngle = DefaultSightAngle;
 
-        // Finalize
+        // ---- FINALIZE ----
+        // Weight affects speed calculation elsewhere (in RobotController)
         stats.weight = Mathf.Max(0f, totalWeight);
+        stats.BakeDerived();
         return stats;
     }
 }

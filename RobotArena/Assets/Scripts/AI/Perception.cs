@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-
 /// <summary>
-/// Handles spatial awareness. Detects enemies and pickups using a
-/// sphere overlap + cone test + optional line‑of‑sight raycast.
+/// Handles spatial awareness. Detects enemies and pickups using
+/// sphere overlaps, field-of-view cone checks, and optional line-of-sight raycasts.
 /// </summary>
 [RequireComponent(typeof(RobotController))]
 public class Perception : MonoBehaviour
@@ -13,20 +12,16 @@ public class Perception : MonoBehaviour
     private RobotController controller;
     private RobotStats stats;
 
-    private const float DeterctionRadius = 60f;
-    /// <summary>How often (seconds) to refresh cached queries.</summary>
-    //private float lastCheckTime;
+    private const float DetectionRadius = 60f;
+
+    [Tooltip("How often (seconds) to refresh cached queries")]
     public float checkInterval = 0.2f;
+
     private float lastEnemyCheckTime;
-    private float lastPickupCheckTime;
     private float _lastAllOppCheckTime;
     private float _lastAllPickupsCheckTime;
+
     private List<Pickup> _cachedAllPickups = new();
-
-    private static readonly Collider[] _enemyHits = new Collider[64];
-    private static readonly Collider[] _pickupHits = new Collider[64];
-
-    private List<Pickup> cachedVisiblePickups = new();
     private List<RobotController> _cachedAllOpponents = new();
     private List<RobotController> cachedVisibleEnemies = new();
 
@@ -45,66 +40,17 @@ public class Perception : MonoBehaviour
     [Tooltip("Layer mask for pickups")]
     public LayerMask pickupMask;
 
-    void Awake()
+    private void Awake()
     {
         controller = GetComponent<RobotController>();
         stats = controller.GetStats();
     }
-    // Currently unused for caching but left for potential optimisation.
-    void Update()
-    {
-    }
 
     // ---------------- PICKUPS ----------------
+
     /// <summary>
-    /// Returns cached list of visible pickups, updating at most every checkInterval seconds.
+    /// Returns cached list of all pickups. Refreshes only once per <see cref="allPickupsCheckInterval"/>.
     /// </summary>
-    //public List<Pickup> GetPickupsInRange()
-    //{
-    //    if (Time.time - lastPickupCheckTime < checkInterval)
-    //        return cachedVisiblePickups;
-
-    //    lastPickupCheckTime = Time.time;
-    //    cachedVisiblePickups = ScanPickupsInRange();
-    //    return cachedVisiblePickups;
-    //}
-
-    ///// <summary>
-    ///// Performs actual scan for visible pickups.
-    ///// </summary>
-    //private List<Pickup> ScanForPickupsInRange()
-    //{
-    //    List<Pickup> visiblePickups = new();
-    //    Collider[] hits = Physics.OverlapSphere(transform.position, DeterctionRadius, pickupMask);
-    //    float halfAngle = stats.sightAngle * 0.5f;
-
-    //    foreach (var hit in hits)
-    //    {
-    //        // Get root with Pickup
-    //        Transform pickupRoot = hit.transform.root;
-    //        if (!pickupRoot.TryGetComponent<Pickup>(out var pickup))
-    //            continue;
-
-    //        // Direction and FOV check
-    //        Vector3 direction = (pickup.transform.position - transform.position).normalized;
-    //        if (Vector3.Angle(transform.forward, direction) > halfAngle)
-    //            continue;
-
-    //        // Line-of-sight check
-    //        Vector3 eye = transform.position + Vector3.up * 0.5f;
-    //        if (Physics.Raycast(eye, direction, out RaycastHit hitInfo, DeterctionRadius, obstacleMask))
-    //        {
-    //            if (hitInfo.transform.root != pickup.transform)
-    //                continue;
-    //        }
-
-    //        visiblePickups.Add(pickup);
-    //    }
-
-    //    return visiblePickups;
-    //}
-
-    // Perception.cs  (add alongside GetAllOpponents)
     public List<Pickup> GetAllPickups()
     {
         if (Time.time - _lastAllPickupsCheckTime < allPickupsCheckInterval)
@@ -114,7 +60,12 @@ public class Perception : MonoBehaviour
         _cachedAllPickups = ScanAllPickups();
         return _cachedAllPickups;
     }
-    public void ApplyStats(RobotStats s) { stats = s; }
+
+    /// <summary>
+    /// Updates the internal <see cref="RobotStats"/> reference.
+    /// Call this when stats are injected or modified.
+    /// </summary>
+    public void ApplyStats(RobotStats s) => stats = s;
 
     private List<Pickup> ScanAllPickups()
     {
@@ -123,22 +74,22 @@ public class Perception : MonoBehaviour
             FindObjectsInactive.Exclude,
             FindObjectsSortMode.None
         );
+
         for (int i = 0; i < all.Length; i++)
         {
             var p = all[i];
             if (p == null) continue;
-            if (!p.isActiveAndEnabled) continue;      // skip disabled or already consumed
+            if (!p.isActiveAndEnabled) continue;
             if (!p.gameObject.activeInHierarchy) continue;
             list.Add(p);
         }
         return list;
     }
 
-
     // ---------------- OPPONENTS ----------------
 
     /// <summary>
-    /// Returns cached list of visible enemies, updating it at most every checkInterval seconds.
+    /// Returns cached list of visible enemies, updated only once per <see cref="checkInterval"/>.
     /// </summary>
     public List<RobotController> GetEnemiesInRange()
     {
@@ -151,27 +102,30 @@ public class Perception : MonoBehaviour
     }
 
     /// <summary>
-    /// Internal method that performs actual scan for visible enemies.
+    /// Internal method that performs actual scan for visible enemies in FOV and LOS.
     /// </summary>
     private List<RobotController> ScanForEnemiesInRange()
     {
-        List<RobotController> visibleEnemies = new();
-        Collider[] hits = Physics.OverlapSphere(transform.position, DeterctionRadius, enemyMask);
+        var visibleEnemies = new List<RobotController>();
+        Collider[] hits = Physics.OverlapSphere(transform.position, DetectionRadius, enemyMask);
         float halfAngle = stats.sightAngle * 0.5f;
 
         foreach (var hit in hits)
         {
-            Transform potentialEnemyRoot = hit.transform.root;
-            if (!potentialEnemyRoot.TryGetComponent<RobotController>(out var potentialEnemy))
+            Transform potentialRoot = hit.transform.root;
+            if (!potentialRoot.TryGetComponent<RobotController>(out var potentialEnemy))
                 continue;
-            if (potentialEnemy == controller) continue; // skip self
-
+            if (potentialEnemy == controller) continue;
 
             Vector3 direction = (potentialEnemy.transform.position - transform.position).normalized;
 
-            // Line of sight check
+            // FOV check
+            if (Vector3.Angle(transform.forward, direction) > halfAngle)
+                continue;
+
+            // LOS check
             Vector3 eye = transform.position + Vector3.up * 0.5f;
-            if (Physics.Raycast(eye, direction, out RaycastHit info, DeterctionRadius, obstacleMask))
+            if (Physics.Raycast(eye, direction, out RaycastHit info, DetectionRadius, obstacleMask))
             {
                 if (info.transform.root != potentialEnemy.transform.root) continue;
             }
@@ -182,7 +136,10 @@ public class Perception : MonoBehaviour
         return visibleEnemies;
     }
 
-
+    /// <summary>
+    /// Returns cached list of all opponents in the scene (excluding self).
+    /// Refreshes only once per <see cref="allOpponentsCheckInterval"/>.
+    /// </summary>
     public List<RobotController> GetAllOpponents()
     {
         if (Time.time - _lastAllOppCheckTime < allOpponentsCheckInterval)
@@ -197,63 +154,50 @@ public class Perception : MonoBehaviour
     {
         var list = new List<RobotController>();
         var all = UnityEngine.Object.FindObjectsByType<RobotController>(
-        FindObjectsInactive.Exclude,
-        FindObjectsSortMode.None
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None
         );
+
         for (int i = 0; i < all.Length; i++)
         {
             var rc = all[i];
-            if (rc == null || rc == controller) continue;              // not me
+            if (rc == null || rc == controller) continue;
             var health = rc.GetHealth();
-            if (health != null && health.CurrentHealth <= 0f) continue; // skip dead
+            if (health != null && health.CurrentHealth <= 0f) continue;
             list.Add(rc);
         }
         return list;
-
     }
 
-    // --- Invalidate for pickups ----
-    void OnEnable()
-    {
-        Pickup.PickupsChanged += InvalidatePickupsCache;
-    }
-    void OnDisable()
-    {
-        Pickup.PickupsChanged -= InvalidatePickupsCache;
-    }
+    // --- Cache invalidation for pickups ----
+    private void OnEnable() => Pickup.PickupsChanged += InvalidatePickupsCache;
+    private void OnDisable() => Pickup.PickupsChanged -= InvalidatePickupsCache;
 
     public void InvalidatePickupsCache()
     {
         _cachedAllPickups.Clear();
-        _lastAllPickupsCheckTime = -999f; // force immediate rescan
+        _lastAllPickupsCheckTime = -999f;
     }
 
+    // ---------------- Gizmos ----------------
 
-
-    /// <summary>
-    /// Draws the detection radius and FOV cone when the robot is
-    /// selected in the Unity Editor Scene view.
-    /// </summary>
-    void OnDrawGizmosSelected()
+    private void OnDrawGizmosSelected()
     {
-        // Ensure we have valid stats reference in editor
         if (stats == null)
         {
             var ctrl = GetComponent<RobotController>();
-            if (ctrl == null || ctrl.GetStats() == null)
-                return;
+            if (ctrl == null || ctrl.GetStats() == null) return;
             stats = ctrl.GetStats();
         }
 
-        // Draw detection radius and sight cone
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, DeterctionRadius);
+        Gizmos.DrawWireSphere(transform.position, DetectionRadius);
 
         float halfAngle = stats.sightAngle * 0.5f;
         Vector3 leftDir = Quaternion.Euler(0, -halfAngle, 0) * transform.forward;
         Vector3 rightDir = Quaternion.Euler(0, halfAngle, 0) * transform.forward;
 
-        Gizmos.DrawLine(transform.position, transform.position + leftDir * DeterctionRadius);
-        Gizmos.DrawLine(transform.position, transform.position + rightDir * DeterctionRadius);
+        Gizmos.DrawLine(transform.position, transform.position + leftDir * DetectionRadius);
+        Gizmos.DrawLine(transform.position, transform.position + rightDir * DetectionRadius);
     }
 }

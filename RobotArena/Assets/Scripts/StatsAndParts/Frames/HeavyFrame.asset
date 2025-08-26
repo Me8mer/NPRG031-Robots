@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: HeavyFrame
   m_EditorClassIdentifier: 
   id: Heavy Frame
-  baseHealth: 1000
+  baseHealth: 800
   baseArmor: 500
-  baseWeight: 60
+  baseWeight: 50

@@ -1,43 +1,47 @@
 using UnityEngine;
 using System;
 
+/// <summary>
+/// Collectible pickup that grants health, armor, or temporary boosts.
+/// Can optionally randomize effect on pickup.
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class Pickup : MonoBehaviour
 {
     public enum PickupType { Health, Armor, DamageBoost, SpeedBoost }
 
-    [Header("Generic Pickup Settings")]
+    [Header("Settings")]
     [Tooltip("If true, the pickup will choose a random effect on consume.")]
     public bool randomizeEffect = true;
 
-    [Tooltip("For Health or Armor: absolute points.\nFor boosts: percent value, e.g. 25 = +25%.")]
-    public float Value = 25f;
+    [Tooltip("For Health/Armor: absolute points. For boosts: percentage (e.g., 25 = +25%).")]
+    public float Value = 50f;
 
-    [Tooltip("Duration for temporary boosts. If 0 or less, a sensible default is used.")]
-    public float Duration = 12f;
+    [Tooltip("Duration for temporary boosts. If <= 0, a sensible default is used.")]
+    public float Duration = 5f;
 
     public static event Action PickupsChanged;
 
     private bool _consumed;
 
+    /// <summary>Called when a robot collects this pickup.</summary>
     public void Consume(RobotController collector)
     {
         if (_consumed || collector == null) return;
         _consumed = true;
 
-        // Pick a random effect at pickup-time
         var chosen = GetChosenType();
         ApplyEffect(chosen, collector);
 
-        // Deactivate and notify perception caches
         gameObject.SetActive(false);
         PickupsChanged?.Invoke();
+
         Debug.Log($"{collector.name} collected {chosen} pickup!");
     }
 
     private PickupType GetChosenType()
     {
-        if (!randomizeEffect) return PickupType.Health; // fallback if you ever want a fixed effect
+        if (!randomizeEffect) return PickupType.Health;
         var types = (PickupType[])Enum.GetValues(typeof(PickupType));
         return types[UnityEngine.Random.Range(0, types.Length)];
     }
@@ -48,19 +52,16 @@ public class Pickup : MonoBehaviour
         switch (type)
         {
             case PickupType.Health:
-                if (health != null) health.Heal(Value);
+                health?.Heal(Value*2);
                 break;
-
             case PickupType.Armor:
-                if (health != null) health.RestoreArmor(Value);
+                health?.RestoreArmor(Value*2);
                 break;
-
             case PickupType.DamageBoost:
-                c.ApplyTimedDamageBoost(Value, Duration > 0f ? Duration : 6f);
+                c.ApplyTimedDamageBoost(Value, Duration);
                 break;
-
             case PickupType.SpeedBoost:
-                c.ApplyTimedSpeedBoost(Value, Duration > 0f ? Duration : 6f);
+                c.ApplyTimedSpeedBoost(Value, Duration);
                 break;
         }
     }

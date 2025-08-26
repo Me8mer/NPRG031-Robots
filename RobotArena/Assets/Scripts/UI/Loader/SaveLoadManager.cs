@@ -4,16 +4,20 @@ using System.IO;
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// Handles saving and loading of robot builds in the Builder UI.
+/// Works with <see cref="BuildSerializer"/> and coordinates with UI components.
+/// </summary>
 public class SaveLoadManager : MonoBehaviour
 {
-    [Header("Assembler + UI deps")]
+    [Header("Dependencies")]
     [SerializeField] private RobotAssembler assembler;
     [SerializeField] private DropdownManager dropdowns;
     [SerializeField] private BodyPartsCatalog catalog;
     [SerializeField] private ColorManager colors;
     [SerializeField] private TMP_InputField nameInput;
-    [SerializeField] private PanelManager panels;   
-    [SerializeField] private StatsPanel stats;      
+    [SerializeField] private PanelManager panels;
+    [SerializeField] private StatsPanel stats;
 
     [Header("Save UI")]
     [SerializeField] private TMP_Text saveStatusText;
@@ -22,11 +26,15 @@ public class SaveLoadManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown loadDropdown;
     [SerializeField] private TMP_Text loadStatusText;
 
-    private bool _isEditing = false;
-    private string _editingFullPath = null;
-    private List<string> _loadPaths = new List<string>();
+    private bool _isEditing;
+    private string _editingFullPath;
+    private List<string> _loadPaths = new();
 
-    // --- Save ---
+    // ---------- Saving ----------
+
+    /// <summary>
+    /// Tries to save the current build (unique or overwrite if editing).
+    /// </summary>
     public void TrySave()
     {
         string robotName = nameInput ? nameInput.text.Trim() : "";
@@ -54,11 +62,13 @@ public class SaveLoadManager : MonoBehaviour
             {
                 var result = BuildSerializer.SaveUnique(data);
                 ShowTransient(result.renamed
-                ? $"Name exists. Saved as: {result.fileName}"
-                : $"Saved: {result.fileName}");
+                    ? $"Name exists. Saved as: {result.fileName}"
+                    : $"Saved: {result.fileName}");
                 _isEditing = false;
                 _editingFullPath = null;
+
             }
+            if (nameInput) nameInput.text = string.Empty;
         }
         catch (Exception ex)
         {
@@ -67,6 +77,9 @@ public class SaveLoadManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Builds a <see cref="RobotBuildData"/> object from current UI state.
+    /// </summary>
     private RobotBuildData BuildCurrentData(string robotName)
     {
         int iFrame = dropdowns.BodyFrameIndex;
@@ -108,7 +121,11 @@ public class SaveLoadManager : MonoBehaviour
         if (saveStatusText != null) saveStatusText.text = msg;
     }
 
-    // --- Load ---
+    // ---------- Loading ----------
+
+    /// <summary>
+    /// Populates dropdown with available saved builds.
+    /// </summary>
     public void PopulateLoadList()
     {
         _loadPaths = BuildSerializer.ListBuildFiles();
@@ -138,6 +155,9 @@ public class SaveLoadManager : MonoBehaviour
         if (loadStatusText) loadStatusText.text = $"Found {_loadPaths.Count} robots.";
     }
 
+    /// <summary>
+    /// Loads and applies the selected build from dropdown.
+    /// </summary>
     public void OnOpenSelectedBuild()
     {
         if (_loadPaths.Count == 0 || loadDropdown == null)
@@ -157,18 +177,20 @@ public class SaveLoadManager : MonoBehaviour
         ApplyLoadedBuild(data, path);
     }
 
+    /// <summary>
+    /// Applies loaded build to UI and assembler, switching to edit mode.
+    /// </summary>
     private void ApplyLoadedBuild(RobotBuildData data, string sourcePath)
     {
-        // success state
         _isEditing = true;
         _editingFullPath = sourcePath;
 
-        // 1) Switch to Build view only on success
-        if (panels) panels.ShowBuild();
+        // 1) Switch to Build view
+        panels?.ShowBuild();
 
-        // 2) Ensure UI is ready
-        dropdowns.Init();    // populates part dropdowns
-        colors.Init();       // populates color dropdowns and ensures palette
+        // 2) Ensure UI ready
+        dropdowns.Init();
+        colors.Init();
 
         // 3) Resolve part indices (prefer IDs)
         int iFrame = catalog.FindFrameIndexById(data.frameId);
@@ -176,33 +198,30 @@ public class SaveLoadManager : MonoBehaviour
         int iWeapon = catalog.FindWeaponIndexById(data.weaponId);
         int iCore = catalog.FindCoreIndexById(data.coreId);
 
-        // Apply part indices to UI safely
         dropdowns.SetPartIndices(iFrame, iLower, iWeapon, iCore);
 
-        // 4) Assemble preview and update stats
+        // 4) Assemble preview + stats
         assembler.Apply(iFrame, iLower, iWeapon, iCore);
-        if (stats) stats.UpdateStats();
+        stats?.UpdateStats();
 
         // 5) Name
         if (nameInput) nameInput.text = data.robotName ?? "";
 
-        // 6) Colors: saved index if valid, else nearest
+        // 6) Colors
         int paletteLen = colors.ColorsCount;
-
         int frameColIdx = (data.frameColorIndex >= 0 && data.frameColorIndex < paletteLen)
-                           ? data.frameColorIndex : colors.FindClosestColorIndex(data.frameColor.ToColor());
+            ? data.frameColorIndex : colors.FindClosestColorIndex(data.frameColor.ToColor());
         int lowerColIdx = (data.lowerColorIndex >= 0 && data.lowerColorIndex < paletteLen)
-                           ? data.lowerColorIndex : colors.FindClosestColorIndex(data.lowerColor.ToColor());
+            ? data.lowerColorIndex : colors.FindClosestColorIndex(data.lowerColor.ToColor());
         int weaponColIdx = (data.weaponColorIndex >= 0 && data.weaponColorIndex < paletteLen)
-                           ? data.weaponColorIndex : colors.FindClosestColorIndex(data.weaponColor.ToColor());
+            ? data.weaponColorIndex : colors.FindClosestColorIndex(data.weaponColor.ToColor());
         int coreColIdx = (data.coreColorIndex >= 0 && data.coreColorIndex < paletteLen)
-                           ? data.coreColorIndex : colors.FindClosestColorIndex(data.coreColor.ToColor());
+            ? data.coreColorIndex : colors.FindClosestColorIndex(data.coreColor.ToColor());
 
-        // 7) Apply color indices now that dropdowns are populated
         colors.SetColorDropdownIndices(frameColIdx, lowerColIdx, weaponColIdx, coreColIdx, apply: true);
 
-        // 8) Status
-        ShowStickyEditing(System.IO.Path.GetFileName(sourcePath));
+        // 7) Status
+        ShowStickyEditing(Path.GetFileName(sourcePath));
         if (loadStatusText) loadStatusText.text = "Loaded.";
     }
 
@@ -211,6 +230,8 @@ public class SaveLoadManager : MonoBehaviour
         _isEditing = false;
         _editingFullPath = null;
     }
+
+    // ---------- Status helpers ----------
 
     public void ShowTransient(string msg, float seconds = 2.5f)
     {
@@ -229,6 +250,4 @@ public class SaveLoadManager : MonoBehaviour
     {
         if (saveStatusText) saveStatusText.text = string.Empty;
     }
-
-
 }

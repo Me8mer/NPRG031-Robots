@@ -2,36 +2,39 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Generates a simple UI gradient on a RawImage and can gently hue-shift over time.
-/// Drop it on a full-screen RawImage under your Main Menu panel.
+/// Generates a simple gradient background on a <see cref="RawImage"/>.
+/// Can render vertical, horizontal, or radial gradients.
+/// 
+/// Intended to be placed on a full-screen RawImage behind the main menu.
 /// </summary>
 [RequireComponent(typeof(RawImage))]
 public class MenuBackgroundGradient : MonoBehaviour
 {
     public enum Direction { Vertical, Horizontal, Radial }
 
-    [Header("Gradient")]
+    [Header("Gradient Colors")]
     [SerializeField] private Direction direction = Direction.Vertical;
+    [Tooltip("Top color (for vertical), left color (for horizontal), or inner color (for radial).")]
     [SerializeField] private Color topOrLeft = new Color(0.10f, 0.12f, 0.18f);   // dark blue
+    [Tooltip("Bottom color (for vertical), right color (for horizontal), or outer color (for radial).")]
     [SerializeField] private Color bottomOrRight = new Color(0.18f, 0.07f, 0.20f); // purple
 
-    [Header("Texture")]
+    [Header("Texture Settings")]
     [SerializeField, Range(64, 1024)] private int width = 512;
     [SerializeField, Range(64, 1024)] private int height = 512;
 
-
     private RawImage _img;
     private Texture2D _tex;
-    private float _hueOffset;
+    private float _hueOffset; // optional hue shift offset
 
-    void OnEnable()
+    private void OnEnable()
     {
         _img = GetComponent<RawImage>();
         CreateTexture();
         RenderGradient();
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
         if (_tex != null)
         {
@@ -40,6 +43,9 @@ public class MenuBackgroundGradient : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Allocates a new Texture2D and attaches it to the RawImage.
+    /// </summary>
     private void CreateTexture()
     {
         if (_tex != null) Destroy(_tex);
@@ -51,6 +57,9 @@ public class MenuBackgroundGradient : MonoBehaviour
         if (_img != null) _img.texture = _tex;
     }
 
+    /// <summary>
+    /// Fills the texture with gradient pixels based on direction and colors.
+    /// </summary>
     private void RenderGradient()
     {
         if (_tex == null) return;
@@ -62,6 +71,7 @@ public class MenuBackgroundGradient : MonoBehaviour
             {
                 float u = width <= 1 ? 0f : (float)x / (width - 1);
 
+                // Map UV to gradient interpolation
                 float t = direction switch
                 {
                     Direction.Vertical => v,
@@ -78,6 +88,9 @@ public class MenuBackgroundGradient : MonoBehaviour
         _tex.Apply(false, false);
     }
 
+    /// <summary>
+    /// Shifts the hue of a color by <paramref name="offset"/>.
+    /// </summary>
     private static Color HueShift(Color c, float offset)
     {
         Color.RGBToHSV(c, out float h, out float s, out float v);
@@ -86,7 +99,7 @@ public class MenuBackgroundGradient : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    void OnValidate()
+    private void OnValidate()
     {
         if (width < 64) width = 64;
         if (height < 64) height = 64;

@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// IDLE state. Robot stays stationary until another intent is decided.
+/// </summary>
 public class IdleState : IState
 {
     private readonly StateMachine _stateMachine;
@@ -18,26 +21,22 @@ public class IdleState : IState
     {
         _controller.SetCurrentState(RobotState.Idle);
 
-        // stop moving
+        // Stop movement completely
         _agent.isStopped = true;
         _agent.speed = 0f;
 
-        // full armor regen
-        //DEPOREACTED computed in health
-        //_controller.GetHealth().SetArmorRegen(_controller.GetStats().armorRegenIdle);
-
+        // Armor regen is now handled in RobotHealth.Update()
         Debug.Log($"{_controller.name} → Idle");
     }
 
     public void Tick()
     {
-        // Delegate any state change to the shared helper
+        // Delegate state change decisions to the shared transition helper
         StateTransitionHelper.HandleTransition(_stateMachine, _controller);
     }
 
-
     public void Exit()
     {
-        // nothing to clean up
+        // No cleanup needed for Idle
     }
 }
