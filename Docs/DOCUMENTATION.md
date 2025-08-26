@@ -2,7 +2,7 @@
 
 > Unity 2022+ • C# • NavMesh • ScriptableObjects • TextMeshPro
 
-This document explains the structure and logic of the project so engineers (and future-you) can confidently extend or refactor it.
+This document explains the structure and logic of the project.
 
 - [High-Level Architecture](#high-level-architecture)
 - [Gameplay Flow & Lifecycles](#gameplay-flow--lifecycles)

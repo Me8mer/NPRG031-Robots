@@ -3,7 +3,6 @@
 Round-based robot arena skirmishes with a full in-game robot **Builder**. Assemble custom robots from modular parts, save your builds, 
 assign them to player slots, and watch them battle it out with a lightweight AI.
 
-> **Tech:** Unity (2022+ recommended), C#, NavMesh, ScriptableObjects, minimal UI (TMP).
 
 ---
 
@@ -22,7 +21,6 @@ assign them to player slots, and watch them battle it out with a lightweight AI.
   - [Perception & Pickups](#perception-pickups)
   - [Arena Game Loop & UI](#arena-game-loop-ui)
 - [Project Setup](#project-setup)
-- [Known Limitations](#known-limitations)
 - [Notes](#notes)
 
 ---
@@ -174,15 +172,6 @@ You’ll see references to these scene names in UI scripts (e.g., PlayerLoaderUI
 3. Create & save a couple of robots.  
 4. Open **Player Loader**, assign 2–4 unique robots, **Continue**.  
 5. Watch the fight in **ArenaPrototypeScene**.  
-
----
-
-## Known Limitations
-
-- **Data-driven tuning:** Many AI and movement constants are currently hardcoded; consider moving to ScriptableObjects for per-robot archetypes.  
-- **Projectile speed / damage modifiers:** Currently split between prefab and stats; unify under stats if you need more granular balancing.  
-- **Aim point overrides:** For best visuals, add a `TargetAnchor` to complex prefabs and have `TargetingSolver` prefer it.  
-- **Persistence:** `SelectedRobotsStore` is static (simple). For larger projects, we should do it differently.  
 
 ---
 
