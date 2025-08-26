@@ -20,3 +20,12 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# Local IDE/VS configs
+Docs/.vs/
+
+# Unity build output
+RobotArena/BuildsSLN/
+
+# Local robot data
+RobotBuilds/
