@@ -20,9 +20,9 @@ MonoBehaviour:
   retreatSpeedModifier: 0.5
   maxHealth: 100
   maxArmor: 50
-  detectionRadius: 10
+  detectionRadius: 100
   sightAngle: 360
-  attackRange: 8
+  attackRange: 100
   fireCooldown: 1
   armorRegenIdle: 2
   armorRegenChase: 1
