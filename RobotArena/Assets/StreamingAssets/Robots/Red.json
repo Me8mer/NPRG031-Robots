@@ -1,0 +1,40 @@
+{
+    "robotName": "Red",
+    "frameId": "Heavy Frame",
+    "frameIndex": 1,
+    "lowerId": "Tracks",
+    "lowerIndex": 1,
+    "weaponId": "Pistols",
+    "weaponIndex": 1,
+    "coreId": "Armor Core",
+    "coreIndex": 1,
+    "frameColor": {
+        "r": 1.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    "frameColorIndex": 1,
+    "lowerColor": {
+        "r": 0.0,
+        "g": 1.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    "lowerColorIndex": 3,
+    "weaponColor": {
+        "r": 0.0,
+        "g": 0.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "weaponColorIndex": 2,
+    "coreColor": {
+        "r": 0.0,
+        "g": 0.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "coreColorIndex": 2,
+    "savedAtIso": "2025-08-25T09:39:55.5284028Z"
+}

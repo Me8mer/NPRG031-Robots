@@ -155,7 +155,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   randomizeEffect: 1
-  Value: 100
+  Value: 50
   Duration: 10
 --- !u!54 &6225022209572426454
 Rigidbody:

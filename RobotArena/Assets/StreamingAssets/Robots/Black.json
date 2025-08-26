@@ -1,0 +1,40 @@
+{
+    "robotName": "Black",
+    "frameId": "Light Frame",
+    "frameIndex": 2,
+    "lowerId": "Wheels",
+    "lowerIndex": 2,
+    "weaponId": "Sawgun",
+    "weaponIndex": 2,
+    "coreId": "Energy Core",
+    "coreIndex": 0,
+    "frameColor": {
+        "r": 0.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    "frameColorIndex": 9,
+    "lowerColor": {
+        "r": 1.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    "lowerColorIndex": 1,
+    "weaponColor": {
+        "r": 1.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    "weaponColorIndex": 1,
+    "coreColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "coreColorIndex": 0,
+    "savedAtIso": "2025-08-25T09:40:46.9027945Z"
+}

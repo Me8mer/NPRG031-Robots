@@ -45,13 +45,43 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed3c5a1f392834343b0bb0928c0f1a57, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  muzzle: {fileID: 556437352945152798}
+  muzzle: {fileID: 8416178892618233987}
   projectilePrefab: {fileID: 3839517531917780137, guid: 37cde3aa4a3203248a0e4c77a5c5d83e, type: 3}
-  projectileSpeed: 500
   hitMask:
     serializedVersion: 2
     m_Bits: 128
   debug: 1
+--- !u!1 &1834214021405625756
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8416178892618233987}
+  m_Layer: 0
+  m_Name: Muzzle
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8416178892618233987
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1834214021405625756}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.175, z: 0.579}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 87508541572845038}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4610561864666175083
 GameObject:
   m_ObjectHideFlags: 0
@@ -83,6 +113,7 @@ Transform:
   m_LocalScale: {x: 0.099999994, y: 0.25, z: 1.1999999}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 8416178892618233987}
   - {fileID: 556437352945152798}
   m_Father: {fileID: 6687079452306407251}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -152,7 +183,7 @@ GameObject:
   - component: {fileID: 6719562326615341567}
   - component: {fileID: 5003717510771812117}
   m_Layer: 0
-  m_Name: Muzzle
+  m_Name: MuzzleVisual
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
